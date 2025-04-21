@@ -66,19 +66,19 @@ def main(args):
         print("GaussianPolicy Ready")
         policy = GaussianPolicy(obs_dim, act_dim, hidden_dim=args.hidden_dim, n_hidden=args.n_hidden)
 
-    def eval_policy(epi_num):
+    def eval_policy(step_num):
         if args.simmul:
             eval_returns = np.array([sim_evalutate_policy(seed=args.seed,env=env, policy=policy, 
-                                                        epi_num=epi_num, 
+                                                        step_num=step_num, epi_num=num,
                                                         max_episode_steps=args.max_episode_steps,
                                                         eval_log_path=args.eval_log_path)
-                                    for _ in range(args.n_eval_episodes)])
+                                    for num in range(args.n_eval_episodes)])
         else:
             eval_returns = np.array([real_evalutate_policy(seed=args.seed,env=env, policy=policy, 
-                                                        epi_num=epi_num, 
+                                                        step_num=step_num, epi_num=num,
                                                         max_episode_steps=args.max_episode_steps,
                                                         eval_log_path=args.eval_log_path)
-                                    for _ in range(args.n_eval_episodes)])
+                                    for num in range(args.n_eval_episodes)])
         result = {
             'return mean': eval_returns.mean(),
             'return std': eval_returns.std(),

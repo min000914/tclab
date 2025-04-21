@@ -124,11 +124,11 @@ def generate_random_tsp(length, name='TSP'):
 import time
 import os
 import matplotlib.pyplot as plt
-def real_evalutate_policy(seed, env, policy, epi_num, max_episode_steps,
+def real_evalutate_policy(seed, env, policy,step_num, epi_num, max_episode_steps,
                           eval_log_path,deterministic=True,st_temp = 29.0,
                           sleep_max=1.0):
     set_seed(seed)
-    print(f"Episode{epi_num} eval start...")
+    print(f"Episode{step_num} eval start...")
     os.makedirs(eval_log_path, exist_ok=True)
     env.Q1(0)
     env.Q2(0)
@@ -155,10 +155,10 @@ def real_evalutate_policy(seed, env, policy, epi_num, max_episode_steps,
     # Integral absolute error
     iae = 0.0
     total_reward = 0.
-    csv_filename = os.path.join(eval_log_path,f'PID_episode_{epi_num}_data.csv')
+    csv_filename = os.path.join(eval_log_path,f'PID_episode_{step_num}_data.csv')
     with open(csv_filename, 'w', newline='') as fid:
         writer = csv.writer(fid)
-        writer.writerow(['EPI_Num', 'Time', 'Q1', 'Q2', 'T1', 'T2', 'TSP1', 'TSP2'])
+        writer.writerow(['step_num', 'Time', 'Q1', 'Q2', 'T1', 'T2', 'TSP1', 'TSP2'])
         for i in range(max_episode_steps):
             sleep = sleep_max - (time.time() - prev_time) - dt_error
             if sleep >= 1e-4:
@@ -195,7 +195,7 @@ def real_evalutate_policy(seed, env, policy, epi_num, max_episode_steps,
                     '{:6.2f} {:6.2f} {:6.2f} {:6.2f} {:6.2f}').format( \
                         tm[i],Tsp1[i],T1[i],Q1[i],Tsp2[i],T2[i],Q2[i],iae))'''
             writer.writerow([
-                    epi_num,
+                    step_num,
                     f"{tm[i]:.2f}",
                     f"{Q1[i]:.2f}",
                     f"{Q2[i]:.2f}",
@@ -213,7 +213,7 @@ def real_evalutate_policy(seed, env, policy, epi_num, max_episode_steps,
         plt.plot(tm,Tsp2,'k-',label=r'$T_2$ set point')
         plt.plot(tm,T2,'r.',label=r'$T_2$ measured')
         plt.ylabel(r'Temperature ($^oC$)')
-        plt.title(f'Episode {epi_num}')
+        plt.title(f'Episode {step_num}')
         plt.legend(loc='best')
 
         ax = plt.subplot(2, 1, 2)
@@ -225,7 +225,7 @@ def real_evalutate_policy(seed, env, policy, epi_num, max_episode_steps,
         plt.legend(loc='best')
 
         plt.tight_layout()
-        png_filename=os.path.join(eval_log_path,f'PID_episode_{epi_num}_plot.png')
+        png_filename=os.path.join(eval_log_path,f'PID_episode_{step_num}_plot.png')
         plt.savefig(png_filename)
         plt.close()
         
@@ -237,7 +237,7 @@ def real_evalutate_policy(seed, env, policy, epi_num, max_episode_steps,
 import time
 import os
 import matplotlib.pyplot as plt
-def sim_evalutate_policy(seed, env, policy, epi_num, max_episode_steps,
+def sim_evalutate_policy(seed, env, policy, step_num, epi_num,max_episode_steps,
                           eval_log_path,deterministic=True,
                           sleep_max=1.0):
 
@@ -245,9 +245,10 @@ def sim_evalutate_policy(seed, env, policy, epi_num, max_episode_steps,
     from tclab import setup
     lab= setup(connected=False)
     env=lab(synced=False)
-    set_seed(seed)
-    print(f"Episode{epi_num} eval start...")
-    os.makedirs(eval_log_path, exist_ok=True)
+    set_seed(epi_num)
+    print(f"Episode{step_num} eval start...")
+    path = os.path.join(eval_log_path,str(epi_num))
+    os.makedirs(path, exist_ok=True)
     env.Q1(0)
     env.Q2(0)
     Tsp1 = generate_random_tsp(max_episode_steps, 'TSP1')
@@ -259,10 +260,10 @@ def sim_evalutate_policy(seed, env, policy, epi_num, max_episode_steps,
     Q2 = np.zeros(max_episode_steps)
 
     total_reward = 0.
-    csv_filename = os.path.join(eval_log_path,f'PID_episode_{epi_num}_data.csv')
+    csv_filename = os.path.join(path,f'PID_episode_{step_num}_data.csv')
     with open(csv_filename, 'w', newline='') as fid:
         writer = csv.writer(fid)
-        writer.writerow(['EPI_Num', 'Time', 'Q1', 'Q2', 'T1', 'T2', 'TSP1', 'TSP2'])
+        writer.writerow(['step_num', 'Time', 'Q1', 'Q2', 'T1', 'T2', 'TSP1', 'TSP2'])
         for i in range(max_episode_steps):
             sim_time = i * sleep_max
             env.update(t=sim_time)
@@ -287,7 +288,7 @@ def sim_evalutate_policy(seed, env, policy, epi_num, max_episode_steps,
                     '{:6.2f} {:6.2f} {:6.2f} {:6.2f} {:6.2f}').format( \
                         tm[i],Tsp1[i],T1[i],Q1[i],Tsp2[i],T2[i],Q2[i],iae))'''
             writer.writerow([
-                    epi_num,
+                    step_num,
                     f"{tm[i]:.2f}",
                     f"{Q1[i]:.2f}",
                     f"{Q2[i]:.2f}",
@@ -305,7 +306,7 @@ def sim_evalutate_policy(seed, env, policy, epi_num, max_episode_steps,
         plt.plot(tm,Tsp2,'k-',label=r'$T_2$ set point')
         plt.plot(tm,T2,'r.',label=r'$T_2$ measured')
         plt.ylabel(r'Temperature ($^oC$)')
-        plt.title(f'Episode {epi_num}')
+        plt.title(f'Episode {step_num}')
         plt.legend(loc='best')
 
         ax = plt.subplot(2, 1, 2)
@@ -317,7 +318,7 @@ def sim_evalutate_policy(seed, env, policy, epi_num, max_episode_steps,
         plt.legend(loc='best')
 
         plt.tight_layout()
-        png_filename=os.path.join(eval_log_path,f'PID_episode_{epi_num}_plot.png')
+        png_filename=os.path.join(path,f'PID_episode_{step_num}_plot.png')
         plt.savefig(png_filename)
         plt.close()
         
