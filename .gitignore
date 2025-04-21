@@ -5,6 +5,7 @@ arduino/
 # provide a development folder
 TCLab/development/
 
+data/
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
