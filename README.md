@@ -1,5 +1,4 @@
 # 🔥 TCLab (Temperature Control Lab)
-![alt text](image.png)
 
 - 공식 사이트: [APMonitor Arduino Temperature Control](https://apmonitor.com/pdc/index.php/Main/ArduinoTemperatureControl)
 
@@ -22,7 +21,6 @@ TCLab은 **2개의 히터**와 **2개의 온도 센서**로 구성되어, 실제
 
 > ✅ 본 실험은 **MIMO 제어** 실험을 중심으로 진행됩니다.
 
-![alt text](pid_mpc_tclab.gif)
 
 ---
 
@@ -71,7 +69,7 @@ IQL을 이용한 강화학습을 다루며 다음을 참고하여 제작되었�
 - **추정 기법**: `scipy.optimize.minimize` + 수치 적분 (`odeint`)  
 - **결과**: 모델 파라미터 → `fopdt.txt` 저장
 
-    ![alt text](image-2.png)
+    ![alt text](img/image-2.png)
 ---
 
 #### 📌 Step 3. PID 파라미터 추정
@@ -179,7 +177,7 @@ PID, MPC로 수집된 데이터를 통해 IQL을 Offline 훈련시킨다.
 - 액션: Q1, Q2
 - 보상: 목표온도 - 측정온도
 
-![alt text](image-3.png)
+![alt text](imgimage-3.png)
 
 ### 실험 2
 - 상태: T1, T2, TSP1, TSP2 
