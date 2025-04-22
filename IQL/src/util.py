@@ -104,7 +104,7 @@ def evaluate_policy(env, policy, max_episode_steps, deterministic=True):
 def generate_random_tsp(length, name='TSP'):
     i = 0
     tsp = np.zeros(length)
-    print(f'duration {length}: [{name} 설정 정보]')
+    #print(f'duration {length}: [{name} 설정 정보]')
     while i < length:
         if length == 600: 
             duration = int(np.clip(np.random.normal(240, 50), 80, 400))
@@ -128,15 +128,15 @@ def real_evalutate_policy(seed, env, policy,step_num, epi_num, max_episode_steps
                           eval_log_path,deterministic=True,st_temp = 29.0,
                           sleep_max=1.0):
     set_seed(seed)
-    print(f"Episode{step_num} eval start...")
+    #print(f"Episode{step_num} eval start...")
     os.makedirs(eval_log_path, exist_ok=True)
     env.Q1(0)
     env.Q2(0)
     # 안전 온도 도달까지 대기
-    print(f'Check that temperatures are < {st_temp} degC before starting')
+    #print(f'Check that temperatures are < {st_temp} degC before starting')
     i = 0
     while env.T1 >= st_temp or env.T2 >= st_temp:
-        print(f'Time: {i} T1: {env.T1} T2: {env.T2}')
+        #print(f'Time: {i} T1: {env.T1} T2: {env.T2}')
         i += 20
         time.sleep(20)
     Tsp1 = generate_random_tsp(max_episode_steps, 'TSP1')
@@ -164,7 +164,7 @@ def real_evalutate_policy(seed, env, policy,step_num, epi_num, max_episode_steps
             if sleep >= 1e-4:
                 time.sleep(sleep - 1e-4)
             else:
-                print('exceeded max cycle time by ' + str(abs(sleep)) + ' sec')
+                #print('exceeded max cycle time by ' + str(abs(sleep)) + ' sec')
                 time.sleep(1e-4)
 
             t = time.time()
@@ -246,13 +246,15 @@ def sim_evalutate_policy(seed, env, policy, step_num, epi_num,max_episode_steps,
     lab= setup(connected=False)
     env=lab(synced=False)
     set_seed(epi_num)
-    print(f"Episode{step_num} eval start...")
-    path = os.path.join(eval_log_path,str(epi_num))
+    ##print(f"Episode{step_num} eval start...")
+    path = os.path.join(eval_log_path,str(seed)+'seed')
+    path = os.path.join(path,str(epi_num)+'epi')
     os.makedirs(path, exist_ok=True)
     env.Q1(0)
     env.Q2(0)
     Tsp1 = generate_random_tsp(max_episode_steps, 'TSP1')
     Tsp2 = generate_random_tsp(max_episode_steps, 'TSP2')
+    set_seed(seed)
     tm = np.zeros(max_episode_steps)
     T1 = np.ones(max_episode_steps) * env.T1
     T2 = np.ones(max_episode_steps) * env.T2
@@ -281,10 +283,10 @@ def sim_evalutate_policy(seed, env, policy, step_num, epi_num,max_episode_steps,
             env.Q2(Q2[i])
             reward = -np.linalg.norm([T1[i] - Tsp1[i], T2[i] - Tsp2[i]])
             total_reward += reward
-            '''print("{:>6} {:>6} {:>6} {:>6} {:>6} {:>6} {:>6} {:>6}".format(
+            '''#print("{:>6} {:>6} {:>6} {:>6} {:>6} {:>6} {:>6} {:>6}".format(
                     'Time', 'Tsp1', 'T1', 'Q1', 'Tsp2', 'T2', 'Q2', 'IAE'
                 ))
-            print(('{:6.1f} {:6.2f} {:6.2f} ' + \
+            #print(('{:6.1f} {:6.2f} {:6.2f} ' + \
                     '{:6.2f} {:6.2f} {:6.2f} {:6.2f} {:6.2f}').format( \
                         tm[i],Tsp1[i],T1[i],Q1[i],Tsp2[i],T2[i],Q2[i],iae))'''
             writer.writerow([
@@ -324,7 +326,7 @@ def sim_evalutate_policy(seed, env, policy, step_num, epi_num,max_episode_steps,
         
         env.Q1(0)
         env.Q2(0)
-        print("All episodes finished.")
+        #print("All episodes finished.")
         return total_reward
 
 

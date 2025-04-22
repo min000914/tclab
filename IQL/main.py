@@ -68,24 +68,48 @@ def main(args):
 
     def eval_policy(step_num):
         if args.simmul:
-            eval_returns = np.array([sim_evalutate_policy(seed=args.seed,env=env, policy=policy, 
-                                                        step_num=step_num, epi_num=num,
-                                                        max_episode_steps=args.max_episode_steps,
-                                                        eval_log_path=args.eval_log_path)
-                                    for num in range(args.n_eval_episodes)])
+            eval_returns = []
+            for tsp_seed in range(5):  # 5개의 TSP 시퀀스
+                tsp_returns = []
+                for run_seed in range(5):  # 5개의 평가 시드
+                    return_i = sim_evalutate_policy(
+                        seed=run_seed, env=env, policy=policy, 
+                        step_num=step_num, epi_num=tsp_seed,
+                        max_episode_steps=args.max_episode_steps,
+                        eval_log_path=args.eval_log_path
+                    )
+                    tsp_returns.append(return_i)
+                eval_returns.append(tsp_returns)
+            eval_returns = np.array(eval_returns)
         else:
             eval_returns = np.array([real_evalutate_policy(seed=args.seed,env=env, policy=policy, 
                                                         step_num=step_num, epi_num=num,
                                                         max_episode_steps=args.max_episode_steps,
                                                         eval_log_path=args.eval_log_path)
                                     for num in range(args.n_eval_episodes)])
-        result = {
+        
+        '''result = {
             'return mean': eval_returns.mean(),
             'return std': eval_returns.std(),
             'return max': eval_returns.max(),
             'return min': eval_returns.min(),
-        }
+        }'''
         
+        mean_all = eval_returns.mean()              # 전체 평균
+        mean_by_tsp = eval_returns.mean(axis=1)     # tsp별 평균
+        min_by_tsp = eval_returns.min(axis=1)       # tsp별 최소값
+        max_by_tsp = eval_returns.max(axis=1)       # tsp별 최대값
+
+        # 결과 딕셔너리 구성
+        result = {
+            'return mean': mean_all,
+        }
+
+        # tsp별 결과 펼치기
+        result.update({f'mean_by_tsp/{i}': v for i, v in enumerate(mean_by_tsp)})
+        result.update({f'min_by_tsp/{i}': v for i, v in enumerate(min_by_tsp)})
+        result.update({f'max_by_tsp/{i}': v for i, v in enumerate(max_by_tsp)})
+
         log.row(result)
         wandb.log(result)
         
@@ -104,9 +128,9 @@ def main(args):
         discount=args.discount
     )
 
+    best_return=-99999.0
     for step in trange(args.n_steps):
         iql.update(**sample_batch(dataset, args.batch_size))
-        best_return=-99999.0
         if (step+1) % args.eval_period == 0:
             result=eval_policy(step)
             wandb.log({"step": step + 1})

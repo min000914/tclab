@@ -12,3 +12,5 @@ IQL/eval_log/
 IQL/log/
 IQL/wandb
 /data
+
+test.ipynb
