@@ -32,8 +32,16 @@ def get_env_and_dataset(log, dataset_path, simmul):
     dataset_np = np.load(dataset_path)
     dataset = {k: torchify(v) for k, v in dataset_np.items()}
 
+    # ✅ [-1, 1] 정규화 후 스케일링
+    r = dataset['rewards']
+    r_min, r_max = r.min(), r.max()
+    r_norm = 2 * (r - r_min) / (r_max - r_min + 1e-8) - 1
+    dataset['rewards'] = r_norm
+
+    log(f"✅ reward normalized [-1, 1] and scaled: min={r_norm.min().item():.3f}, max={r_norm.max().item():.3f}")
     log(f"Loaded dataset with {len(dataset['observations'])} transitions from {dataset_path}")
     return env, dataset
+
 
 def main(args):
     torch.set_num_threads(1)
@@ -109,13 +117,13 @@ def main(args):
     )
 
     best_return = -99999.0
-    for step in trange(args.n_steps):
+    for step in range(args.n_steps):
         batch = sample_batch(dataset, args.batch_size)
         batch = {k: v.to(device) for k, v in batch.items()}
         iql.update(**batch)
 
         if (step + 1) % args.eval_period == 0:
-            result = eval_policy(step+1)
+            result = eval_policy(step + 1)
             wandb.log({"step": step + 1})
             if result['return mean'] > best_return:
                 best_return = result['return mean']
@@ -124,6 +132,7 @@ def main(args):
                 print(f"📈 Best model saved with return {best_return:.2f}")
                 wandb.run.summary['best_return'] = best_return
                 wandb.save(str(best_path))
+
 
     torch.save(iql.state_dict(), log.dir / 'final.pt')
     wandb.save(str(log.dir / 'final.pt'))
