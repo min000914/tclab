@@ -177,7 +177,7 @@ PID, MPC로 수집된 데이터를 통해 IQL을 Offline 훈련시킨다.
 - 액션: Q1, Q2
 - 보상: 목표온도 - 측정온도
 
-![alt text](imgimage-3.png)
+![alt text](img/image-3.png)
 
 ### 실험 2
 - 상태: T1, T2, TSP1, TSP2 
