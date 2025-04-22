@@ -9,8 +9,8 @@ from .mpc_lib import *
 import os
 
 
-csv_dir = '../data/PID2MPC/MPC2/csv'
-png_dir = '../data/PID2MPC/MPC2/png'
+csv_dir = '../data/PID_MPC/MPC/csv'
+png_dir = '../data/PID_MPC/MPC/png'
 os.makedirs(csv_dir, exist_ok=True)
 os.makedirs(png_dir, exist_ok=True)
 # 실험 파라미터

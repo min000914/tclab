@@ -17,8 +17,8 @@ EPISODES = 50
 DURATION = 1200
 sleep_max = 1.0
 
-csv_dir = '../data/PID2MPC/PID3/csv'
-png_dir = '../data/PID2MPC/PID3/png'
+csv_dir = '../data/PID_MPC/PID/csv'
+png_dir = '../data/PID_MPC/PID/png'
 os.makedirs(csv_dir, exist_ok=True)
 os.makedirs(png_dir, exist_ok=True)
 
