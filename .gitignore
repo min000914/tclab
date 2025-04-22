@@ -4,13 +4,13 @@
 # Byte-compiled / optimized / DLL files
 __pycache__/
 data/
-*.apm
-*.csv
 *.png
 *.out
 IQL/eval_log/
 IQL/log/
 IQL/wandb
 /data
+data.csv
 
 test.ipynb
+*.gif
