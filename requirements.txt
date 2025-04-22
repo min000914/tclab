@@ -1,0 +1,37 @@
+# 핵심 라이브러리
+numpy
+pandas
+scipy
+matplotlib
+seaborn
+
+# 강화학습 환경 및 도구 TCLab 사용시 불필요
+
+#gym==0.24.1
+#mujoco==3.3.1
+#mujoco-py==2.1.2.14
+#pybullet
+#dm-control
+#d4rl
+#yqtgraph  # 시각화 용도면 포함
+
+# PyTorch
+torch==2.6.0
+
+# 실험 로깅 및 유틸
+wandb
+tqdm
+absl-py
+
+# 제어용 특수 패키지
+tclab
+gekko
+APMonitor
+
+# 필수 의존성이지만 종종 빠지는 것들
+requests
+PyYAML
+
+# Jupyter 환경 (필요 시)
+jupyter
+ipywidgets
