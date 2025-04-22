@@ -166,4 +166,48 @@ PID와 MPC 데이터를 동시에 수집합니다.
         /data/PID_MPC/MPC/csv/MPC_episode_*.png
 
 
-## 3. Offline Reinforcement
+## 3. Offline Reinforcement(IQL)
+
+PID, MPC로 수집된 데이터를 통해 IQL을 Offline 훈련시킨다. 
+
+경로: `/make_offline_data.ipynb`
+
+다음 노트북을 실행시켜 offline 훈련에 사용될 데이터를 생성한다.
+
+### 실험 1
+- 상태: T1, T2, TSP1, TSP2 
+- 액션: Q1, Q2
+- 보상: 목표온도 - 측정온도
+
+![alt text](image-3.png)
+
+### 실험 2
+- 상태: T1, T2, TSP1, TSP2 
+- 액션: Q1, Q2
+- 보상: 목표온도(t+1) - 측정온도(t+1)
+
+t시점의 Q는 t시점의 T1,T2가 제어되는 것이 아닌 t+1시점의 T1,T2가 제어되는 것임
+그렇기에 다음 시점의 목표온도와 측정온도의 차이를 보상함수로 지정함.
+
+
+### 실험 3
+
+- 상태: T1, T2, TSP1, TSP2 
+- 액션: Q1, Q2
+
+앞선 방식들은 올바른 액션을 취해도 현재 상태가 안좋으면 보상 또한 좋지 않았다.
+
+- 보상:  PBRS(Potential-Based Reward Shaping) 적용 
+
+-> 
+phi_t = -‖T_t - TSP_t‖
+reward_t = γ * phi_{t+1} - phi_t
+
+
+현재의 행동으로 인해 다음 상태의 개선정도가 보상으로서 작용된다.
+
+| 상황             | PBRS 보상     | 유도되는 행동  |
+|------------------|---------------|----------------|
+| 목표에 가까워짐  | 양의 보상 ↑   | 접근           |
+| 그대로 유지      | 거의 0        | 정지 유지       |
+| 목표에서 멀어짐  | 음의 보상 ↓   | 복귀 시도       |

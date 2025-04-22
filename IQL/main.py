@@ -115,7 +115,7 @@ def main(args):
         iql.update(**batch)
 
         if (step + 1) % args.eval_period == 0:
-            result = eval_policy(step)
+            result = eval_policy(step+1)
             wandb.log({"step": step + 1})
             if result['return mean'] > best_return:
                 best_return = result['return mean']
