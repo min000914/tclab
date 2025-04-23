@@ -4,20 +4,17 @@ import torch
 from tqdm import trange
 import tclab
 import wandb
+import os
+from datetime import datetime
 
 from src.iql import ImplicitQLearning
 from src.policy import GaussianPolicy, DeterministicPolicy
 from src.value_functions import TwinQ, ValueFunction
-from src.util import return_range, set_seed, Log, sample_batch, evaluate_policy, real_evalutate_policy, sim_evalutate_policy
-
+from src.util import return_range, set_seed, torchify, Log, sample_batch, evaluate_policy, real_evalutate_policy, sim_evalutate_policy
 
 # GPU 디바이스 설정
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print("🚀 Using device:", device)
-
-# torchify 함수 수정
-def torchify(x):
-    return torch.tensor(x, dtype=torch.float32).to(device)
 
 def get_env_and_dataset(log, dataset_path, simmul):
     if simmul:
@@ -32,13 +29,15 @@ def get_env_and_dataset(log, dataset_path, simmul):
     dataset_np = np.load(dataset_path)
     dataset = {k: torchify(v) for k, v in dataset_np.items()}
 
-    # ✅ [-1, 1] 정규화 후 스케일링
+    # ✅ [-1, 1] 정규화 후 ×10 스케일링
+    reward_scale=5.0
     r = dataset['rewards']
     r_min, r_max = r.min(), r.max()
     r_norm = 2 * (r - r_min) / (r_max - r_min + 1e-8) - 1
-    dataset['rewards'] = r_norm
+    r_scaled = r_norm * reward_scale
+    dataset['rewards'] = r_scaled
 
-    log(f"✅ reward normalized [-1, 1] and scaled: min={r_norm.min().item():.3f}, max={r_norm.max().item():.3f}")
+    log(f"✅ reward normalized [-1, 1] and scaled ×{reward_scale}: min={r_scaled.min().item():.3f}, max={r_scaled.max().item():.3f}")
     log(f"Loaded dataset with {len(dataset['observations'])} transitions from {dataset_path}")
     return env, dataset
 
@@ -47,6 +46,8 @@ def main(args):
     torch.set_num_threads(1)
     log = Log(Path(args.log_dir) / args.lab_name, vars(args))
     log(f'Log dir: {log.dir}')
+    now_str = datetime.now().strftime('%Y%m%d_%H%M')
+    eval_log_path = os.path.join(args.eval_log_path, now_str)
 
     # wandb 초기화
     wandb.init(entity="TCLab", project="TCLab", name=args.lab_name, config=vars(args))
@@ -72,7 +73,7 @@ def main(args):
                         seed=run_seed, env=env, policy=policy,
                         step_num=step_num, epi_num=tsp_seed,
                         max_episode_steps=args.max_episode_steps,
-                        eval_log_path=args.eval_log_path
+                        eval_log_path=eval_log_path
                     )
                     tsp_returns.append(return_i)
                 eval_returns.append(tsp_returns)
@@ -83,7 +84,7 @@ def main(args):
                     seed=args.seed, env=env, policy=policy,
                     step_num=step_num, epi_num=num,
                     max_episode_steps=args.max_episode_steps,
-                    eval_log_path=args.eval_log_path
+                    eval_log_path=eval_log_path
                 ) for num in range(args.n_eval_episodes)
             ])
 
@@ -119,7 +120,10 @@ def main(args):
     best_return = -99999.0
     for step in range(args.n_steps):
         batch = sample_batch(dataset, args.batch_size)
+        
         batch = {k: v.to(device) for k, v in batch.items()}
+        
+        
         iql.update(**batch)
 
         if (step + 1) % args.eval_period == 0:

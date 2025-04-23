@@ -21,6 +21,9 @@ class Squeeze(nn.Module):
 
     def forward(self, x):
         return x.squeeze(dim=self.dim)
+    
+def torchify(x):
+    return torch.tensor(x, dtype=torch.float32).to(DEFAULT_DEVICE)
 
 
 def mlp(dims, activation=nn.ReLU, output_activation=None, squeeze_output=False):
@@ -155,7 +158,7 @@ def real_evalutate_policy(seed, env, policy,step_num, epi_num, max_episode_steps
     # Integral absolute error
     iae = 0.0
     total_reward = 0.
-    csv_filename = os.path.join(eval_log_path,f'PID_episode_{step_num}_data.csv')
+    csv_filename = os.path.join(eval_log_path,f'episode_{step_num}_data.csv')
     with open(csv_filename, 'w', newline='') as fid:
         writer = csv.writer(fid)
         writer.writerow(['step_num', 'Time', 'Q1', 'Q2', 'T1', 'T2', 'TSP1', 'TSP2'])
@@ -179,7 +182,10 @@ def real_evalutate_policy(seed, env, policy,step_num, epi_num, max_episode_steps
             # Read temperatures in Kelvin 
             T1[i] = env.T1
             T2[i] = env.T2
-            obs = np.array([T1[i], T2[i], Tsp1[i], Tsp2[i]], dtype=np.float32)
+            #obs = np.array([T1[i], T2[i], Tsp1[i], Tsp2[i]], dtype=np.float32)
+            dT1=T1[i-1]-T1[i]
+            dT2=T2[i-1]-T2[i]
+            obs = np.array([T1[i], T2[i], Tsp1[i], Tsp2[i], Q1[i-1],Q2[i-1],dT1,dT2], dtype=np.float32)
             with torch.no_grad():
                 action = policy.act(torchify(obs), deterministic=deterministic).cpu().numpy()
             Q1[i],Q2[i]=action    
@@ -225,7 +231,7 @@ def real_evalutate_policy(seed, env, policy,step_num, epi_num, max_episode_steps
         plt.legend(loc='best')
 
         plt.tight_layout()
-        png_filename=os.path.join(eval_log_path,f'PID_episode_{step_num}_plot.png')
+        png_filename=os.path.join(eval_log_path,f'episode_{step_num}_plot.png')
         plt.savefig(png_filename)
         plt.close()
         
@@ -262,7 +268,7 @@ def sim_evalutate_policy(seed, env, policy, step_num, epi_num,max_episode_steps,
     Q2 = np.zeros(max_episode_steps)
 
     total_reward = 0.
-    csv_filename = os.path.join(path,f'PID_episode_{step_num}_data.csv')
+    csv_filename = os.path.join(path,f'episode_{step_num}_data.csv')
     with open(csv_filename, 'w', newline='') as fid:
         writer = csv.writer(fid)
         writer.writerow(['step_num', 'Time', 'Q1', 'Q2', 'T1', 'T2', 'TSP1', 'TSP2'])
@@ -275,6 +281,20 @@ def sim_evalutate_policy(seed, env, policy, step_num, epi_num,max_episode_steps,
             T1[i] = env.T1
             T2[i] = env.T2
             obs = np.array([T1[i], T2[i], Tsp1[i], Tsp2[i]], dtype=np.float32)
+            
+            if i == 0:
+                dT1 = 0.0
+                dT2 = 0.0
+                prevQ1 = 0.0
+                prevQ2 = 0.0
+            else:
+                dT1 = T1[i-1] - T1[i]
+                dT2 = T2[i-1] - T2[i]
+                prevQ1 = Q1[i-1]
+                prevQ2 = Q2[i-1]
+            
+            #obs = np.array([T1[i], T2[i], Tsp1[i], Tsp2[i], prevQ1,prevQ2,dT1,dT2], dtype=np.float32)
+            #obs = np.array([T1[i], T2[i], Tsp1[i], Tsp2[i], dT1,dT2], dtype=np.float32)
             with torch.no_grad():
                 action = policy.act(torchify(obs), deterministic=deterministic).cpu().numpy()
             Q1[i],Q2[i]=action    
@@ -320,7 +340,7 @@ def sim_evalutate_policy(seed, env, policy, step_num, epi_num,max_episode_steps,
         plt.legend(loc='best')
 
         plt.tight_layout()
-        png_filename=os.path.join(path,f'PID_episode_{step_num}_plot.png')
+        png_filename=os.path.join(path,f'episode_{step_num}_plot.png')
         plt.savefig(png_filename)
         plt.close()
         
