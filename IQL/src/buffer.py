@@ -31,13 +31,13 @@ class ReplayBuffer:
 
         def to_tensor(x): return torch.tensor(np.stack(x), dtype=torch.float32).to(self.device)
 
-        states = to_tensor([e.state for e in experiences])
+        obs = to_tensor([e.obs for e in experiences])
         actions = to_tensor([e.action for e in experiences])
         rewards = to_tensor([[e.reward] for e in experiences])
-        next_states = to_tensor([e.next_state for e in experiences])
-        dones = to_tensor([[float(e.done)] for e in experiences])
+        next_obs = to_tensor([e.next_obs for e in experiences])
+        terminals = to_tensor([[float(e.terminal)] for e in experiences])
   
-        return (states, actions, rewards, next_states, dones)
+        return (obs, actions, rewards, next_obs, terminals)
 
     def __len__(self):
         """Return the current size of internal memory."""

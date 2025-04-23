@@ -15,5 +15,7 @@ data.csv
 test.ipynb
 *.gif
 
+*.log
+
 !img/
 !img/*.png
