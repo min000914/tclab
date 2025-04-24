@@ -1,5 +1,3 @@
-from collections import deque
-import random
 import os
 from pathlib import Path
 from datetime import datetime
@@ -10,40 +8,15 @@ import wandb
 import tclab
 from tqdm import trange
 
+from src.buffer import ReplayBuffer
 from src.iql import ImplicitQLearning
 from src.policy import GaussianPolicy, DeterministicPolicy
 from src.value_functions import TwinQ, ValueFunction
 from src.util import (
-    return_range, generate_random_tsp, set_seed, torchify, Log,
-    sample_batch, evaluate_policy, real_evalutate_policy, sim_evalutate_policy
+    generate_random_tsp, set_seed, torchify, Log,
+    sim_evalutate_policy,
+    normalize_reward,save_csv_png
 )
-from main import get_env_and_dataset
-
-
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-
-class ReplayBuffer:
-    def __init__(self, capacity=100_000):
-        self.buffer = deque(maxlen=capacity)
-
-    def add(self, transition):
-        self.buffer.append(transition)
-
-    def sample(self, batch_size):
-        samples = random.sample(self.buffer, batch_size)
-        obs, act, rew, next_obs, done = map(np.stack, zip(*samples))
-        return {
-            'observations': torchify(obs),
-            'actions': torchify(act),
-            'rewards': torchify(rew),
-            'next_observations': torchify(next_obs),
-            'terminals': torchify(done),
-        }
-
-    def __len__(self):
-        return len(self.buffer)
-
 
 def get_env(simmul):
     if simmul:
@@ -54,6 +27,7 @@ def get_env(simmul):
 
 
 def main(args):
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     log = Log(Path(args.log_dir) / args.lab_name, vars(args))
     wandb.init(entity="TCLab", project="TCLab", name=args.lab_name, config=vars(args))
     now_str = datetime.now().strftime('%Y%m%d_%H%M')
@@ -61,8 +35,6 @@ def main(args):
 
     obs_dim = 4  # [T1, T2, TSP1, TSP2, prevQ1, prevQ2, dT1, dT2]
     act_dim = 2
-    env = get_env(args.simmul)
-    set_seed(args.seed)
     buffer = ReplayBuffer()
 
     policy_cls = DeterministicPolicy if args.deterministic_policy else GaussianPolicy
@@ -88,25 +60,25 @@ def main(args):
             print(f"⚠️ Given offline model path does not exist: {model_path}")
         
        
-
-        
-    def eval_policy(step_num):
-        eval_returns = []
-        for tsp_seed in range(100_000, 100_000 + args.n_eval_episodes):
-            tsp_returns = []
-            for run_seed in range(args.n_eval_seeds):
-                return_i = sim_evalutate_policy(
-                    seed=run_seed, env=env, policy=policy,
-                    step_num=step_num, epi_num=tsp_seed,
-                    max_episode_steps=args.max_episode_steps,
-                    eval_log_path=eval_log_path
-                )
-                tsp_returns.append(return_i)
-            eval_returns.append(tsp_returns)
-        eval_returns = np.array(eval_returns)
-
+    def eval_policy():
+        all_datas = []
+        if args.simmul:
+            eval_returns = []
+            #for tsp_seed in range(999_999, 999_999 + args.n_eval_episodes):
+            for tsp_seed in range(args.n_eval_episodes):
+                tsp_returns = []
+                for run_seed in range(args.n_eval_seeds):
+                    data = sim_evalutate_policy(
+                        seed=run_seed, env=env, policy=policy,
+                        epi_num=tsp_seed,
+                        max_episode_steps=args.max_episode_steps,
+                        eval_log_path=eval_log_path,
+                    )
+                    all_datas.append(data)
+                    tsp_returns.append(data['total_reward']) 
+                eval_returns.append(tsp_returns)
+            eval_returns = np.array(eval_returns)
         result = {
-            'steps': step_num,
             'return mean': eval_returns.mean(),
             **{f'mean_by_tsp/{i}': v for i, v in enumerate(eval_returns.mean(axis=1))},
             **{f'min_by_tsp/{i}': v for i, v in enumerate(eval_returns.min(axis=1))},
@@ -114,22 +86,21 @@ def main(args):
         }
         log.row(result)
         wandb.log(result)
-        return result
+        return result, all_datas
 
-    eval_policy(0)
-    set_seed(args.seed)
-    epi_num, epi_step, epi_reward, done = 4, 0, 0, True
-    best_return = -float('inf')
-
-    set_seed(args.seed)
+    env = get_env(args.simmul)
+    epi_num, epi_step, epi_reward, done = args.n_eval_episodes-1, 0, 0, 1.0
+    result,all_data= eval_policy()
+    best_return = result['return mean']
+    save_csv_png(all_data,0)
     for step in range(args.n_steps):
         if done:
-            if epi_num > 4:
-                log(f"episode: {epi_num} is done epi_reard: {epi_reward}")
+            #if epi_num > 0:
+                #log(f"episode: {epi_num} is done epi_reard: {epi_reward}")
             epi_num += 1
             epi_step = 0
             epi_reward = 0
-            done = False
+            done = 0.0
             env.close()
             env = get_env(args.simmul)
             set_seed(epi_num)
@@ -139,7 +110,7 @@ def main(args):
 
         
         if (epi_step + 1) % args.max_episode_steps == 0:
-            done = True
+            done = 1.0
 
         cur_T1, cur_T2 = env.T1, env.T2
         obs = np.array([cur_T1, cur_T2, Tsp1[epi_step], Tsp2[epi_step]])
@@ -150,25 +121,33 @@ def main(args):
         Q1, Q2 = action
         env.Q1(Q1)
         env.Q2(Q2)
+        
+        epi_step += 1
         env.update(t=epi_step * 1.0)
 
         next_T1, next_T2 = env.T1, env.T2
-        next_obs = np.array([next_T1, next_T2, Tsp1[epi_step], Tsp2[epi_step]])
-        reward = -np.linalg.norm([next_T1 - Tsp1[epi_step], next_T2 - Tsp2[epi_step]])
-
-        buffer.add((obs, action, reward, next_obs, done))
+        #print(f"epi:{epi_num} step:{epi_step} T1:{cur_T1} T2:{cur_T2} nT1:{next_T1} nT2:{next_T2} Q1:{Q1} Q2:{Q2}, Tsp1:{Tsp1[epi_step]}, Tsp2:{Tsp2[epi_step]}")
+        if done:
+            next_obs=obs
+            reward = 0.0 
+        else:   
+            next_obs = np.array([next_T1, next_T2, Tsp1[epi_step], Tsp2[epi_step]])
+            raw_reward = -np.linalg.norm([next_T1 - Tsp1[epi_step], next_T2 - Tsp2[epi_step]])
+            reward=normalize_reward(raw_reward, reward_scale=float(args.reward_scale))
+        
+        buffer.add((obs, action, next_obs, reward , done))
         epi_reward += reward
-        epi_step += 1
 
         if len(buffer) > args.min_batch_size:
             batch = buffer.sample(args.batch_size)
+            #print(batch['next_observations'].shape) 
             iql.update(**batch)
 
             if (step + 1) % args.eval_period == 0:
-                result = eval_policy(step + 1)
-                set_seed(args.seed)
+                result, all_data = eval_policy()
                 wandb.log({"step": step + 1})
                 if result['return mean'] > best_return:
+                    save_csv_png(all_data,step+1)
                     best_return = result['return mean']
                     best_path = log.dir / 'best.pt'
                     torch.save(iql.state_dict(), best_path)
@@ -198,15 +177,16 @@ if __name__ == '__main__':
     parser.add_argument('--n-hidden', type=int, default=2)
     parser.add_argument('--n-steps', type=int, default=10**6)
     parser.add_argument('--batch-size', type=int, default=256)
-    parser.add_argument('--min-batch-size', type=int, default=5000)
+    parser.add_argument('--min-batch-size', type=int, default=14900)
     parser.add_argument('--learning-rate', type=float, default=3e-4)
     parser.add_argument('--alpha', type=float, default=0.005)
     parser.add_argument('--tau', type=float, default=0.7)
     parser.add_argument('--beta', type=float, default=3.0)
     parser.add_argument('--deterministic-policy', action='store_true')
     parser.add_argument('--eval-period', type=int, default=5000)
-    parser.add_argument('--n-eval-episodes', type=int, default=5)
+    parser.add_argument('--n-eval-episodes', type=int, default=7)
     parser.add_argument('--n-eval-seeds', type=int, default=3)
+    parser.add_argument('--reward-scale',default=20.0)
     parser.add_argument('--max-episode-steps', type=int, default=1000)
 
     main(parser.parse_args())
