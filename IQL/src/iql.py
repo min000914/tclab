@@ -33,6 +33,7 @@ class ImplicitQLearning(nn.Module):
         self.alpha = alpha
 
     def update(self, observations, actions, next_observations, rewards, terminals):
+        #print("@@@@",next_observations)
         with torch.no_grad():
             target_q = self.q_target(observations, actions)
             next_v = self.vf(next_observations)
@@ -48,9 +49,15 @@ class ImplicitQLearning(nn.Module):
         self.v_optimizer.step()
 
         # Update Q function
+        #targets = rewards + (1. - terminals.float()) * self.discount * next_v.detach()
+        rewards = rewards.squeeze(-1)
+        terminals = terminals.squeeze(-1)
         targets = rewards + (1. - terminals.float()) * self.discount * next_v.detach()
+
         qs = self.qf.both(observations, actions)
+
         q_loss = sum(F.mse_loss(q, targets) for q in qs) / len(qs)
+        #print(q_loss)
         self.q_optimizer.zero_grad(set_to_none=True)
         q_loss.backward()
         self.q_optimizer.step()
