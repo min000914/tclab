@@ -124,9 +124,8 @@ def generate_random_tsp(length, name='TSP'):
         i = end
     return tsp
 
-import time
+'''import time
 import os
-import matplotlib.pyplot as plt
 def real_evalutate_policy(seed, env, policy,step_num, epi_num, max_episode_steps,
                           eval_log_path,deterministic=True,st_temp = 29.0,
                           sleep_max=1.0):
@@ -194,12 +193,12 @@ def real_evalutate_policy(seed, env, policy,step_num, epi_num, max_episode_steps
             env.Q2(Q2[i])
             reward = -np.linalg.norm([T1[i] - Tsp1[i], T2[i] - Tsp2[i]])
             total_reward += reward
-            '''print("{:>6} {:>6} {:>6} {:>6} {:>6} {:>6} {:>6} {:>6}".format(
+            print("{:>6} {:>6} {:>6} {:>6} {:>6} {:>6} {:>6} {:>6}".format(
                     'Time', 'Tsp1', 'T1', 'Q1', 'Tsp2', 'T2', 'Q2', 'IAE'
                 ))
             print(('{:6.1f} {:6.2f} {:6.2f} ' + \
                     '{:6.2f} {:6.2f} {:6.2f} {:6.2f} {:6.2f}').format( \
-                        tm[i],Tsp1[i],T1[i],Q1[i],Tsp2[i],T2[i],Q2[i],iae))'''
+                        tm[i],Tsp1[i],T1[i],Q1[i],Tsp2[i],T2[i],Q2[i],iae))
             writer.writerow([
                     step_num,
                     f"{tm[i]:.2f}",
@@ -238,117 +237,139 @@ def real_evalutate_policy(seed, env, policy,step_num, epi_num, max_episode_steps
         env.Q1(0)
         env.Q2(0)
         print("All episodes finished.")
-        return total_reward
+        return total_reward'''
 
-import time
+
 import os
-import matplotlib.pyplot as plt
-def sim_evalutate_policy(seed, env, policy, step_num, epi_num,max_episode_steps,
-                          eval_log_path,deterministic=True,
-                          sleep_max=1.0):
-
+def sim_evalutate_policy(seed, env, policy, epi_num, max_episode_steps, eval_log_path,
+                         sleep_max=1.0):
     env.close()
     from tclab import setup
-    lab= setup(connected=False)
-    env=lab(synced=False)
+    lab = setup(connected=False)
+    env = lab(synced=False)
+
     set_seed(epi_num)
-    ##print(f"Episode{step_num} eval start...")
-    path = os.path.join(eval_log_path,str(seed)+'seed')
-    path = os.path.join(path,str(epi_num)+'epi')
-    os.makedirs(path, exist_ok=True)
+
     env.Q1(0)
     env.Q2(0)
     Tsp1 = generate_random_tsp(max_episode_steps, 'TSP1')
     Tsp2 = generate_random_tsp(max_episode_steps, 'TSP2')
     set_seed(seed)
+
     tm = np.zeros(max_episode_steps)
     T1 = np.ones(max_episode_steps) * env.T1
     T2 = np.ones(max_episode_steps) * env.T2
     Q1 = np.zeros(max_episode_steps)
     Q2 = np.zeros(max_episode_steps)
 
-    total_reward = 0.
-    csv_filename = os.path.join(path,f'episode_{step_num}_data.csv')
-    with open(csv_filename, 'w', newline='') as fid:
-        writer = csv.writer(fid)
-        writer.writerow(['step_num', 'Time', 'Q1', 'Q2', 'T1', 'T2', 'TSP1', 'TSP2'])
-        for i in range(max_episode_steps):
-            sim_time = i * sleep_max
-            env.update(t=sim_time)
-            tm[i] = sim_time
-            
-            # Read temperatures in Kelvin 
-            T1[i] = env.T1
-            T2[i] = env.T2
-            obs = np.array([T1[i], T2[i], Tsp1[i], Tsp2[i]], dtype=np.float32)
-            
-            if i == 0:
-                dT1 = 0.0
-                dT2 = 0.0
-                prevQ1 = 0.0
-                prevQ2 = 0.0
-            else:
-                dT1 = T1[i-1] - T1[i]
-                dT2 = T2[i-1] - T2[i]
-                prevQ1 = Q1[i-1]
-                prevQ2 = Q2[i-1]
-            
-            #obs = np.array([T1[i], T2[i], Tsp1[i], Tsp2[i], prevQ1,prevQ2,dT1,dT2], dtype=np.float32)
-            #obs = np.array([T1[i], T2[i], Tsp1[i], Tsp2[i], dT1,dT2], dtype=np.float32)
-            with torch.no_grad():
-                action = policy.act(torchify(obs), deterministic=deterministic).cpu().numpy()
-            Q1[i],Q2[i]=action    
-            
-            env.Q1(Q1[i])
-            env.Q2(Q2[i])
-            reward = -np.linalg.norm([T1[i] - Tsp1[i], T2[i] - Tsp2[i]])
-            total_reward += reward
-            '''#print("{:>6} {:>6} {:>6} {:>6} {:>6} {:>6} {:>6} {:>6}".format(
-                    'Time', 'Tsp1', 'T1', 'Q1', 'Tsp2', 'T2', 'Q2', 'IAE'
-                ))
-            #print(('{:6.1f} {:6.2f} {:6.2f} ' + \
-                    '{:6.2f} {:6.2f} {:6.2f} {:6.2f} {:6.2f}').format( \
-                        tm[i],Tsp1[i],T1[i],Q1[i],Tsp2[i],T2[i],Q2[i],iae))'''
-            writer.writerow([
+    total_reward = 0.0
+
+    for i in range(max_episode_steps):
+        sim_time = i * sleep_max
+        env.update(t=sim_time)
+        tm[i] = sim_time
+
+        T1[i] = env.T1
+        T2[i] = env.T2
+        obs = np.array([T1[i], T2[i], Tsp1[i], Tsp2[i]], dtype=np.float32)
+
+        if i == 0:
+            dT1, dT2, prevQ1, prevQ2 = 0.0, 0.0, 0.0, 0.0
+        else:
+            dT1 = T1[i - 1] - T1[i]
+            dT2 = T2[i - 1] - T2[i]
+            prevQ1 = Q1[i - 1]
+            prevQ2 = Q2[i - 1]
+
+        with torch.no_grad():
+            action = policy.act(torchify(obs), deterministic=True).cpu().numpy()
+        Q1[i], Q2[i] = action
+
+        env.Q1(Q1[i])
+        env.Q2(Q2[i])
+
+        reward = -np.linalg.norm([T1[i] - Tsp1[i], T2[i] - Tsp2[i]])
+        total_reward += reward
+
+    env.Q1(0)
+    env.Q2(0)
+
+    # 결과 저장
+    path = os.path.join(eval_log_path, f"{seed}seed", f"{epi_num}epi")
+    return {
+        "path": path,
+        "tm": tm,
+        "Q1": Q1,
+        "Q2": Q2,
+        "T1": T1,
+        "T2": T2,
+        "Tsp1": Tsp1,
+        "Tsp2": Tsp2,
+        "total_reward": total_reward,
+    }
+
+
+def save_csv_png(all_data,step_num):
+    import csv
+    import matplotlib.pyplot as plt
+    for data in all_data:
+        path = data["path"]
+        tm = data["tm"]
+        Q1 = data["Q1"]
+        Q2 = data["Q2"]
+        T1 = data["T1"]
+        T2 = data["T2"]
+        Tsp1 = data["Tsp1"]
+        Tsp2 = data["Tsp2"]
+        os.makedirs(path, exist_ok=True)
+        csv_filename = os.path.join(path, f'episode_{step_num}_data.csv')
+        with open(csv_filename, 'w', newline='') as fid:
+            writer = csv.writer(fid)
+            writer.writerow(['step_num', 'Time', 'Q1', 'Q2', 'T1', 'T2', 'TSP1', 'TSP2'])
+            for i in range(len(tm)):
+                writer.writerow([
                     step_num,
-                    f"{tm[i]:.2f}",
-                    f"{Q1[i]:.2f}",
-                    f"{Q2[i]:.2f}",
-                    f"{T1[i]:.2f}",
-                    f"{T2[i]:.2f}",
-                    f"{Tsp1[i]:.2f}",
-                    f"{Tsp2[i]:.2f}"
+                    f"{tm[i]:.2f}", f"{Q1[i]:.2f}", f"{Q2[i]:.2f}",
+                    f"{T1[i]:.2f}", f"{T2[i]:.2f}", f"{Tsp1[i]:.2f}", f"{Tsp2[i]:.2f}"
                 ])
-            
+
         plt.figure(figsize=(10, 7))
         ax = plt.subplot(2, 1, 1)
         ax.grid()
-        plt.plot(tm,Tsp1,'k--',label=r'$T_1$ set point')
-        plt.plot(tm,T1,'b.',label=r'$T_1$ measured')
-        plt.plot(tm,Tsp2,'k-',label=r'$T_2$ set point')
-        plt.plot(tm,T2,'r.',label=r'$T_2$ measured')
+        plt.plot(tm, Tsp1, 'k--', label=r'$T_1$ set point')
+        plt.plot(tm, T1, 'b.', label=r'$T_1$ measured')
+        plt.plot(tm, Tsp2, 'k-', label=r'$T_2$ set point')
+        plt.plot(tm, T2, 'r.', label=r'$T_2$ measured')
         plt.ylabel(r'Temperature ($^oC$)')
         plt.title(f'Episode {step_num}')
         plt.legend(loc='best')
 
         ax = plt.subplot(2, 1, 2)
         ax.grid()
-        plt.plot(tm,Q1,'b-',label=r'$Q_1$')
-        plt.plot(tm,Q2,'r:',label=r'$Q_2$')
+        plt.plot(tm, Q1, 'b-', label=r'$Q_1$')
+        plt.plot(tm, Q2, 'r:', label=r'$Q_2$')
         plt.ylabel('Heater Output (%)')
         plt.xlabel('Time (sec)')
         plt.legend(loc='best')
 
         plt.tight_layout()
-        png_filename=os.path.join(path,f'episode_{step_num}_plot.png')
+        png_filename = os.path.join(path, f'episode_{step_num}_plot.png')
         plt.savefig(png_filename)
         plt.close()
-        
-        env.Q1(0)
-        env.Q2(0)
-        #print("All episodes finished.")
-        return total_reward
 
+
+    
+def normalize_reward(r,REWARD_MIN=-60.0,REWARD_MAX=0.0,reward_scale=20.0):
+    # 기본 정규화: [-60, 0] → [-1, 1] → [-5, 5]
+    r_norm = 2 * (r - REWARD_MIN) / (REWARD_MAX - REWARD_MIN + 1e-8) - 1
+    scaled_reward = r_norm * reward_scale
+
+    # [-2, 0] 범위에 대한 추가 점수: r=-2이면 0점, r=0이면 5점
+    '''if r >= -2.0 and r <= 0.0:
+        bonus = (r + 2.0) / 2.0 * 5.0  # 선형 보너스: -2 → 0, 0 → 5
+        scaled_reward += bonus'''
+
+    return scaled_reward
 
 def set_seed(seed, env=None):
     torch.manual_seed(seed)

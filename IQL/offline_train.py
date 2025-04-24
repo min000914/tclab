@@ -10,8 +10,11 @@ from datetime import datetime
 from src.iql import ImplicitQLearning
 from src.policy import GaussianPolicy, DeterministicPolicy
 from src.value_functions import TwinQ, ValueFunction
-from src.util import return_range, set_seed, torchify, Log, sample_batch, evaluate_policy, real_evalutate_policy, sim_evalutate_policy
-
+from src.util import (
+    set_seed, torchify, Log,
+    sample_batch, sim_evalutate_policy,
+    normalize_reward,save_csv_png
+)
 # GPU 디바이스 설정
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print("🚀 Using device:", device)
@@ -29,15 +32,11 @@ def get_env_and_dataset(log, dataset_path, simmul):
     dataset_np = np.load(dataset_path)
     dataset = {k: torchify(v) for k, v in dataset_np.items()}
 
-    # ✅ [-1, 1] 정규화 후 ×10 스케일링
-    reward_scale=5.0
+    reward_scale = 20
     r = dataset['rewards']
-    r_min, r_max = r.min(), r.max()
-    r_norm = 2 * (r - r_min) / (r_max - r_min + 1e-8) - 1
-    r_scaled = r_norm * reward_scale
-    dataset['rewards'] = r_scaled
+    dataset['rewards'] = normalize_reward(r,reward_scale=reward_scale)
 
-    log(f"✅ reward normalized [-1, 1] and scaled ×{reward_scale}: min={r_scaled.min().item():.3f}, max={r_scaled.max().item():.3f}")
+    log(f"✅ reward normalized [-1, 1] and scaled ×{reward_scale}")
     log(f"Loaded dataset with {len(dataset['observations'])} transitions from {dataset_path}")
     return env, dataset
 
@@ -63,47 +62,33 @@ def main(args):
         print("GaussianPolicy Ready")
         policy = GaussianPolicy(obs_dim, act_dim, hidden_dim=args.hidden_dim, n_hidden=args.n_hidden).to(device)
 
-    def eval_policy(step_num):
+    def eval_policy():
+        all_datas = []
         if args.simmul:
             eval_returns = []
+            #for tsp_seed in range(999_999, 999_999 + args.n_eval_episodes):
             for tsp_seed in range(args.n_eval_episodes):
                 tsp_returns = []
                 for run_seed in range(args.n_eval_seeds):
-                    return_i = sim_evalutate_policy(
+                    data = sim_evalutate_policy(
                         seed=run_seed, env=env, policy=policy,
-                        step_num=step_num, epi_num=tsp_seed,
+                        epi_num=tsp_seed,
                         max_episode_steps=args.max_episode_steps,
-                        eval_log_path=eval_log_path
+                        eval_log_path=eval_log_path,
                     )
-                    tsp_returns.append(return_i)
+                    all_datas.append(data)
+                    tsp_returns.append(data['total_reward']) 
                 eval_returns.append(tsp_returns)
             eval_returns = np.array(eval_returns)
-        else:
-            eval_returns = np.array([
-                real_evalutate_policy(
-                    seed=args.seed, env=env, policy=policy,
-                    step_num=step_num, epi_num=num,
-                    max_episode_steps=args.max_episode_steps,
-                    eval_log_path=eval_log_path
-                ) for num in range(args.n_eval_episodes)
-            ])
-
-        mean_all = eval_returns.mean()
-        mean_by_tsp = eval_returns.mean(axis=1)
-        min_by_tsp = eval_returns.min(axis=1)
-        max_by_tsp = eval_returns.max(axis=1)
-
         result = {
-            'steps': step_num,
-            'return mean': mean_all,
+            'return mean': eval_returns.mean(),
+            **{f'mean_by_tsp/{i}': v for i, v in enumerate(eval_returns.mean(axis=1))},
+            **{f'min_by_tsp/{i}': v for i, v in enumerate(eval_returns.min(axis=1))},
+            **{f'max_by_tsp/{i}': v for i, v in enumerate(eval_returns.max(axis=1))},
         }
-        result.update({f'mean_by_tsp/{i}': v for i, v in enumerate(mean_by_tsp)})
-        result.update({f'min_by_tsp/{i}': v for i, v in enumerate(min_by_tsp)})
-        result.update({f'max_by_tsp/{i}': v for i, v in enumerate(max_by_tsp)})
-
         log.row(result)
         wandb.log(result)
-        return result
+        return result, all_datas
 
     iql = ImplicitQLearning(
         qf=TwinQ(obs_dim, act_dim, hidden_dim=args.hidden_dim, n_hidden=args.n_hidden).to(device),
@@ -127,9 +112,10 @@ def main(args):
         iql.update(**batch)
 
         if (step + 1) % args.eval_period == 0:
-            result = eval_policy(step + 1)
+            result, all_data = eval_policy()
             wandb.log({"step": step + 1})
             if result['return mean'] > best_return:
+                save_csv_png(all_data,step+1)
                 best_return = result['return mean']
                 best_path = log.dir / 'best.pt'
                 torch.save(iql.state_dict(), best_path)
@@ -164,7 +150,7 @@ if __name__ == '__main__':
     parser.add_argument('--beta', type=float, default=3.0)
     parser.add_argument('--deterministic-policy', action='store_true')
     parser.add_argument('--eval-period', type=int, default=5000)
-    parser.add_argument('--n-eval-episodes', type=int, default=5)
+    parser.add_argument('--n-eval-episodes', type=int, default=7)
     parser.add_argument('--n-eval-seeds', type=int, default=3)
     parser.add_argument('--max-episode-steps', type=int, default=1000)
     main(parser.parse_args())
