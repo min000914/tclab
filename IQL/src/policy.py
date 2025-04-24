@@ -21,16 +21,17 @@ class GaussianPolicy(nn.Module):
         std = torch.exp(self.log_std.clamp(LOG_STD_MIN, LOG_STD_MAX))
         scale_tril = torch.diag(std)
         return MultivariateNormal(mean, scale_tril=scale_tril)
-        # if mean.ndim > 1:
-        #     batch_size = len(obs)
-        #     return MultivariateNormal(mean, scale_tril=scale_tril.repeat(batch_size, 1, 1))
-        # else:
-        #     return MultivariateNormal(mean, scale_tril=scale_tril)
 
-    def act(self, obs, deterministic=False, enable_grad=False):
+    def act(self, obs, deterministic=False, enable_grad=False, noise_D=0.03):
         with torch.set_grad_enabled(enable_grad):
             dist = self(obs)
-            return dist.mean if deterministic else dist.sample()
+            if deterministic:
+                action = dist.mean
+            else:
+                action = dist.sample()
+                noise = torch.randn_like(action) * noise_D  # 표준편차 0.03의 가우시안 노이즈
+                action = action + noise
+            return torch.clamp(action, 0.0, 100.0)
 
 
 class DeterministicPolicy(nn.Module):
