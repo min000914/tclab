@@ -6,20 +6,21 @@ import tclab
 import wandb
 import os
 from datetime import datetime
-
+import math
 from src.iql import ImplicitQLearning
 from src.policy import GaussianPolicy, DeterministicPolicy
 from src.value_functions import TwinQ, ValueFunction
 from src.util import (
     set_seed, torchify, Log,
     sample_batch, sim_evalutate_policy,
-    normalize_reward,save_csv_png
+    save_csv_png,print_dataset_statistics,normalize_dataset,normalize_reward
 )
 # GPU 디바이스 설정
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print("🚀 Using device:", device)
 
-def get_env_and_dataset(log, dataset_path, simmul):
+
+def get_env_and_dataset(log, dataset_path, simmul, normalizaion, reward_scale=1.0, obs_scale=1.0, act_scale=1.0):
     if simmul:
         from tclab import setup
         lab = setup(connected=False)
@@ -31,12 +32,19 @@ def get_env_and_dataset(log, dataset_path, simmul):
 
     dataset_np = np.load(dataset_path)
     dataset = {k: torchify(v) for k, v in dataset_np.items()}
-
-    reward_scale = 20
-    r = dataset['rewards']
-    dataset['rewards'] = normalize_reward(r,reward_scale=reward_scale)
-
-    log(f"✅ reward normalized [-1, 1] and scaled ×{reward_scale}")
+    reward_min,reward_max=print_dataset_statistics(dataset=dataset)
+    adjusted_min = math.floor(reward_min)
+    adjusted_max = math.ceil(reward_max)
+    print(dataset)
+    if normalizaion:
+        dataset = normalize_dataset(dataset, reward_scale=reward_scale, obs_scale=obs_scale, act_scale=act_scale)
+    else:
+        dataset['rewards'] = normalize_reward(dataset['rewards'], REWARD_MIN=adjusted_min,REWARD_MAX=adjusted_max,reward_scale=reward_scale)
+    print_dataset_statistics(dataset=dataset)
+    print(dataset)
+    
+    
+    log(f"✅ rewards, observations, next_observations, actions 모두 정규화 완료")
     log(f"Loaded dataset with {len(dataset['observations'])} transitions from {dataset_path}")
     return env, dataset
 
@@ -50,14 +58,21 @@ def main(args):
 
     # wandb 초기화
     wandb.init(entity="TCLab", project="TCLab", name=args.lab_name, config=vars(args))
+    
+    env, dataset = get_env_and_dataset(log, args.dataset_path, simmul=args.simmul, 
+                                       reward_scale=args.reward_scale, obs_scale=args.obs_scale,
+                                       normalizaion=args.normalization,
+                                       act_scale=args.act_scale)
+    
 
-    env, dataset = get_env_and_dataset(log, args.dataset_path, simmul=args.simmul)
     obs_dim = dataset['observations'].shape[1]
+    #print(obs_dim,"@@@@@@@@@@@@")
     act_dim = dataset['actions'].shape[1]
     set_seed(args.seed)
 
     if args.deterministic_policy:
-        policy = DeterministicPolicy(obs_dim, act_dim, hidden_dim=args.hidden_dim, n_hidden=args.n_hidden).to(device)
+        policy = DeterministicPolicy(obs_dim, act_dim, hidden_dim=args.hidden_dim, 
+                                     n_hidden=args.n_hidden).to(device)
     else:
         print("GaussianPolicy Ready")
         policy = GaussianPolicy(obs_dim, act_dim, hidden_dim=args.hidden_dim, n_hidden=args.n_hidden).to(device)
@@ -75,6 +90,9 @@ def main(args):
                         epi_num=tsp_seed,
                         max_episode_steps=args.max_episode_steps,
                         eval_log_path=eval_log_path,
+                        obs_scale=args.obs_scale,
+                        act_scale=args.act_scale,
+                        normalization=args.normalization,
                     )
                     all_datas.append(data)
                     tsp_returns.append(data['total_reward']) 
@@ -105,10 +123,7 @@ def main(args):
     best_return = -99999.0
     for step in range(args.n_steps):
         batch = sample_batch(dataset, args.batch_size)
-        
         batch = {k: v.to(device) for k, v in batch.items()}
-        
-        
         iql.update(**batch)
 
         if (step + 1) % args.eval_period == 0:
@@ -153,4 +168,8 @@ if __name__ == '__main__':
     parser.add_argument('--n-eval-episodes', type=int, default=7)
     parser.add_argument('--n-eval-seeds', type=int, default=3)
     parser.add_argument('--max-episode-steps', type=int, default=1000)
+    parser.add_argument('--reward-scale',type=int,default=10.0)
+    parser.add_argument('--normalization',default=False)
+    parser.add_argument('--obs-scale',type=int,default=1.0)
+    parser.add_argument('--act-scale',type=int,default=1.0)
     main(parser.parse_args())
