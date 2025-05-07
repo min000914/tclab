@@ -33,7 +33,7 @@ def main(args):
     now_str = datetime.now().strftime('%Y%m%d_%H%M')
     eval_log_path = os.path.join(args.eval_log_path, now_str)
 
-    obs_dim = 4  # [T1, T2, TSP1, TSP2, prevQ1, prevQ2, dT1, dT2]
+    obs_dim = args.obs_dim  # [T1, T2, TSP1, TSP2, prevQ1, prevQ2, dT1, dT2]
     act_dim = 2
     buffer = ReplayBuffer()
 
@@ -104,6 +104,7 @@ def main(args):
             env.close()
             env = get_env(args.simmul)
             set_seed(epi_num)
+            #print(epi_num,"!!!!!!!!!!!!!!")
             Tsp1 = generate_random_tsp(args.max_episode_steps, 'TSP1')
             Tsp2 = generate_random_tsp(args.max_episode_steps, 'TSP2')
             set_seed(args.seed)
@@ -112,12 +113,25 @@ def main(args):
         if (epi_step + 1) % args.max_episode_steps == 0:
             done = 1.0
 
-        cur_T1, cur_T2 = env.T1, env.T2
-        obs = np.array([cur_T1, cur_T2, Tsp1[epi_step], Tsp2[epi_step]])
+        if epi_step ==0:
+            cur_T1, cur_T2 = env.T1, env.T2
+            prev_T1,prev_T2=cur_T1,cur_T2
+            prev_Q1,prev_Q2=29,29
+        else :
+            cur_T1,cur_T2=next_T1,next_T2
+        
+        dT1=cur_T1-prev_T1
+        dT2=cur_T2-prev_T2
+        
+        #obs = np.array([cur_T1, cur_T2, Tsp1[epi_step], Tsp2[epi_step],prev_Q1,prev_Q2,dT1,dT2])
+        #obs = np.array([cur_T1,Tsp1[epi_step],dT1,cur_T2,Tsp2[epi_step],dT2])
+        obs = np.array([cur_T1,Tsp1[epi_step],cur_T2,Tsp2[epi_step]])
+######################################################################
+
 
         with torch.no_grad():
-            action = policy.act(torchify(obs), deterministic=False).cpu().numpy()
-
+            action = policy.act(torchify(obs), deterministic=False, noise_D=args.noise).cpu().numpy()
+                
         Q1, Q2 = action
         env.Q1(Q1)
         env.Q2(Q2)
@@ -126,15 +140,23 @@ def main(args):
         env.update(t=epi_step * 1.0)
 
         next_T1, next_T2 = env.T1, env.T2
+        prev_T1,prev_T2=cur_T1,cur_T2
+        prev_Q1,prev_Q2=Q1,Q2
+        
         #print(f"epi:{epi_num} step:{epi_step} T1:{cur_T1} T2:{cur_T2} nT1:{next_T1} nT2:{next_T2} Q1:{Q1} Q2:{Q2}, Tsp1:{Tsp1[epi_step]}, Tsp2:{Tsp2[epi_step]}")
         if done:
+            continue
             next_obs=obs
             reward = 0.0 
-        else:   
-            next_obs = np.array([next_T1, next_T2, Tsp1[epi_step], Tsp2[epi_step]])
+        else:
+            next_dT1,next_dT2 = next_T1-cur_T1,next_T2-cur_T2
+            #next_obs = np.array([next_T1, next_T2, Tsp1[epi_step], Tsp2[epi_step],Q1,Q2,next_dT1,next_dT2])
+            #next_obs = np.array([next_T1, Tsp1[epi_step], next_dT1, Tsp2[epi_step],next_T2,next_dT2])
+            next_obs = np.array([next_T1, Tsp1[epi_step], next_T2, Tsp2[epi_step]])
             raw_reward = -np.linalg.norm([next_T1 - Tsp1[epi_step], next_T2 - Tsp2[epi_step]])
             reward=normalize_reward(raw_reward, reward_scale=float(args.reward_scale))
-        
+
+        #print(f"epi:{epi_num} step:{epi_step} obs: {obs} action:{action}, next_obs:{next_obs} reward: {reward:.3f}")
         buffer.add((obs, action, next_obs, reward , done))
         epi_reward += reward
 
@@ -177,7 +199,8 @@ if __name__ == '__main__':
     parser.add_argument('--n-hidden', type=int, default=2)
     parser.add_argument('--n-steps', type=int, default=10**6)
     parser.add_argument('--batch-size', type=int, default=256)
-    parser.add_argument('--min-batch-size', type=int, default=14900)
+    parser.add_argument('--obs-dim', type=int, default=4)
+    parser.add_argument('--min-batch-size', type=int, default=54900)
     parser.add_argument('--learning-rate', type=float, default=3e-4)
     parser.add_argument('--alpha', type=float, default=0.005)
     parser.add_argument('--tau', type=float, default=0.7)
@@ -186,7 +209,8 @@ if __name__ == '__main__':
     parser.add_argument('--eval-period', type=int, default=5000)
     parser.add_argument('--n-eval-episodes', type=int, default=7)
     parser.add_argument('--n-eval-seeds', type=int, default=3)
-    parser.add_argument('--reward-scale',default=20.0)
+    parser.add_argument('--reward-scale',default=10.0)
     parser.add_argument('--max-episode-steps', type=int, default=1000)
+    parser.add_argument('--noise', type=float, default=3.5)
 
     main(parser.parse_args())
