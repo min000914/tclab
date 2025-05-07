@@ -86,6 +86,8 @@ def sample_batch(dataset, batch_size):
     for v in dataset.values():
         assert len(v) == n, 'Dataset values must have same length'
     indices = torch.randint(low=0, high=n, size=(batch_size,), device=device)
+    #print(indices)
+    #print("@@@@@@@@2")
     return {k: v[indices] for k, v in dataset.items()}
 
 
@@ -120,7 +122,8 @@ def generate_random_tsp(length, name='TSP'):
         temp = np.random.uniform(25, 65)
         end = min(i + duration, length)
         tsp[i:end] = temp
-        '''print(f'  구간: {i:>3} ~ {end - 1:>3}, 목표 온도: {temp:.2f}°C')'''
+        #print("@@@@@@@@@@@@@@@@")
+        #print(f'  구간: {i:>3} ~ {end - 1:>3}, 목표 온도: {temp:.2f}°C')
         i = end
     return tsp
 
@@ -242,7 +245,7 @@ def real_evalutate_policy(seed, env, policy,step_num, epi_num, max_episode_steps
 
 import os
 def sim_evalutate_policy(seed, env, policy, epi_num, max_episode_steps, eval_log_path,
-                         sleep_max=1.0):
+                         obs_scale=1.0, act_scale=1.0, sleep_max=1.0, normalization=False,device="cuda:0"):
     env.close()
     from tclab import setup
     lab = setup(connected=False)
@@ -263,6 +266,12 @@ def sim_evalutate_policy(seed, env, policy, epi_num, max_episode_steps, eval_log
     Q2 = np.zeros(max_episode_steps)
 
     total_reward = 0.0
+    '''obs_mins = torch.tensor([23.0, 25.0, -1.3, 23.0, 25.0, -1.3], device=device)
+    obs_maxs = torch.tensor([67.0, 65.0, 1.3, 67.0, 65.0, 1.3], device=device)'''
+    obs_mins = torch.tensor([23.0, 25.0, 23.0, 25.0], device=device)
+    obs_maxs = torch.tensor([67.0, 65.0, 67.0, 65.0], device=device)
+    act_mins = torch.tensor([0.0, 0.0], device=device)
+    act_maxs = torch.tensor([100.0, 100.0], device=device)
 
     for i in range(max_episode_steps):
         sim_time = i * sleep_max
@@ -271,18 +280,45 @@ def sim_evalutate_policy(seed, env, policy, epi_num, max_episode_steps, eval_log
 
         T1[i] = env.T1
         T2[i] = env.T2
-        obs = np.array([T1[i], T2[i], Tsp1[i], Tsp2[i]], dtype=np.float32)
 
         if i == 0:
-            dT1, dT2, prevQ1, prevQ2 = 0.0, 0.0, 0.0, 0.0
+            dT1, dT2, prevQ1, prevQ2 = 0.0, 0.0, 29.0, 29.0
+        elif i<4:
+            dT1, dT2, prevQ1, prevQ2 = T1[i]-T1[i-1], T2[i]-T2[i-1], 29.0, 29.0
         else:
-            dT1 = T1[i - 1] - T1[i]
-            dT2 = T2[i - 1] - T2[i]
+            dT1 = T1[i] - T1[i - 4] 
+            dT2 = T2[i] - T2[i - 4]
             prevQ1 = Q1[i - 1]
             prevQ2 = Q2[i - 1]
 
+        #obs = np.array([T1[i], T2[i], Tsp1[i], Tsp2[i], prevQ1,prevQ2,dT1,dT2], dtype=np.float32)
+        obs = np.array([T1[i], Tsp1[i], dT1, T2[i], Tsp2[i], dT2], dtype=np.float32)
+        #obs = np.array([T1[i], Tsp1[i], T2[i],Tsp2[i]], dtype=np.float32)
+        if normalization:
+            obs = normalize(
+                obs,
+                min_val=obs_mins,  # 학습 때 사용한 min
+                max_val=obs_maxs,  # 학습 때 사용한 max
+                scale=obs_scale,
+                mode='zero_one'    # obs는 0~1 정규화
+            )
+
+        
         with torch.no_grad():
-            action = policy.act(torchify(obs), deterministic=True).cpu().numpy()
+            if normalization:
+                action = policy.act(obs, deterministic=True)
+            else:
+                action = policy.act(torchify(obs), deterministic=True).cpu().numpy()
+        #print(f"action: {action}")
+        if normalization:
+            action = unnormalize(
+                action,
+                min_val=act_mins,
+                max_val=act_maxs,
+                scale=act_scale,
+                mode='zero_one'
+            ).cpu().numpy()
+        
         Q1[i], Q2[i] = action
 
         env.Q1(Q1[i])
@@ -357,19 +393,126 @@ def save_csv_png(all_data,step_num):
         plt.savefig(png_filename)
         plt.close()
 
+def print_dataset_statistics(dataset):
+    obs = dataset['observations']
+    next_obs = dataset['next_observations']
+    act = dataset['actions']
+    rew = dataset['rewards']
+
+    print("=== Dataset Statistics ===")
+
+    print("Observations:")
+    print(f"  min: {obs.min(dim=0).values}")
+    print(f"  max: {obs.max(dim=0).values}")
+
+    print("\nNext Observations:")
+    print(f"  min: {next_obs.min(dim=0).values}")
+    print(f"  max: {next_obs.max(dim=0).values}")
+
+    print("\nActions:")
+    print(f"  min: {act.min(dim=0).values}")
+    print(f"  max: {act.max(dim=0).values}")
+
+    print("\nRewards:")
+    print(f"  min: {rew.min()}")
+    print(f"  max: {rew.max()}")
+    
+    return rew.min(), rew.max()
 
     
-def normalize_reward(r,REWARD_MIN=-60.0,REWARD_MAX=0.0,reward_scale=20.0):
+def normalize_reward(r,REWARD_MIN=-50.0,REWARD_MAX=1.0,reward_scale=20.0):
     # 기본 정규화: [-60, 0] → [-1, 1] → [-5, 5]
     r_norm = 2 * (r - REWARD_MIN) / (REWARD_MAX - REWARD_MIN + 1e-8) - 1
     scaled_reward = r_norm * reward_scale
 
-    # [-2, 0] 범위에 대한 추가 점수: r=-2이면 0점, r=0이면 5점
-    '''if r >= -2.0 and r <= 0.0:
-        bonus = (r + 2.0) / 2.0 * 5.0  # 선형 보너스: -2 → 0, 0 → 5
-        scaled_reward += bonus'''
-
     return scaled_reward
+def normalize(x, min_val, max_val, scale=1.0, mode='zero_one'):
+    """
+    mode:
+    - 'zero_one': [min_val, max_val] → [0, 1] → (× scale)
+    - 'minus_one_one': [min_val, max_val] → [-1, 1] → (× scale)
+    """
+    if not torch.is_tensor(x):
+        x = torch.from_numpy(x).to(min_val.device)  # min_val.device로 올려야 device 맞음
+
+    if not torch.is_tensor(min_val):
+        min_val = torch.tensor(min_val, device=x.device, dtype=x.dtype)
+    if not torch.is_tensor(max_val):
+        max_val = torch.tensor(max_val, device=x.device, dtype=x.dtype)
+    if mode == 'zero_one':
+        x_norm = (x - min_val) / (max_val - min_val + 1e-8)
+    elif mode == 'minus_one_one':
+        x_norm = 2 * (x - min_val) / (max_val - min_val + 1e-8) - 1
+
+    return x_norm * scale
+
+def unnormalize(x, min_val, max_val, scale=1.0, mode='zero_one'):
+    """
+    mode:
+    - 'zero_one': [0, 1] → [min_val, max_val]
+    - 'minus_one_one': [-1, 1] → [min_val, max_val]
+    """
+
+    if mode == 'zero_one':
+        x_rescaled = x / scale
+        x_orig = x_rescaled * (max_val - min_val) + min_val
+    elif mode == 'minus_one_one':
+        x_rescaled = x / scale
+        x_orig = (x_rescaled + 1) * (max_val - min_val) / 2 + min_val
+
+    return x_orig
+
+
+def normalize_dataset(dataset, reward_scale=1.0, obs_scale=1.0, act_scale=1.0):
+    obs = dataset['observations']
+    next_obs = dataset['next_observations']
+    act = dataset['actions']
+
+    '''obs_mins = torch.tensor([23.0, 25.0, -1.3, 23.0, 25.0, -1.3], device=obs.device)
+    obs_maxs = torch.tensor([67.0, 65.0, 1.3, 67.0, 65.0, 1.3], device=obs.device)'''
+    obs_mins = torch.tensor([23.0, 25.0,  23.0, 25.0], device=obs.device)
+    obs_maxs = torch.tensor([67.0, 65.0, 67.0, 65.0], device=obs.device)
+    act_mins = torch.tensor([0.0, 0.0], device=act.device)
+    act_maxs = torch.tensor([100.0, 100.0], device=act.device)
+
+    # rewards: [-1, 1] 정규화 후 scale
+    dataset['rewards'] = normalize(
+        dataset['rewards'], 
+        min_val=-50.0, 
+        max_val=0.0, 
+        scale=reward_scale,
+        mode='minus_one_one'
+    )
+
+    # observations: [0, 1] 정규화 후 scale
+    dataset['observations'] = normalize(
+        obs,
+        min_val=obs_mins,
+        max_val=obs_maxs,
+        scale=obs_scale,
+        mode='zero_one'
+    )
+
+    # next_observations: [0, 1] 정규화 후 scale
+    dataset['next_observations'] = normalize(
+        next_obs,
+        min_val=obs_mins,
+        max_val=obs_maxs,
+        scale=obs_scale,
+        mode='zero_one'
+    )
+
+    # actions: [0, 1] 정규화 후 scale
+    dataset['actions'] = normalize(
+        act,
+        min_val=act_mins,
+        max_val=act_maxs,
+        scale=act_scale,
+        mode='zero_one'
+    )
+
+    return dataset
+
 
 def set_seed(seed, env=None):
     torch.manual_seed(seed)
