@@ -17,8 +17,8 @@ EPISODES = 50
 DURATION = 1200
 sleep_max = 1.0
 
-csv_dir = '../data/PID_MPC/PID/csv'
-png_dir = '../data/PID_MPC/PID/png'
+csv_dir = '../data/added_data/PID/csv'
+png_dir = '../data/added_data/PID/png'
 os.makedirs(csv_dir, exist_ok=True)
 os.makedirs(png_dir, exist_ok=True)
 
@@ -148,12 +148,12 @@ def pid_main():
                 a.Q1(Q1[i])
                 a.Q2(Q2[i])
                 
-                print("{:>6} {:>6} {:>6} {:>6} {:>6} {:>6} {:>6} {:>6}".format(
+                ''' print("{:>6} {:>6} {:>6} {:>6} {:>6} {:>6} {:>6} {:>6}".format(
                     'Time', 'Tsp1', 'T1', 'Q1', 'Tsp2', 'T2', 'Q2', 'IAE'
                 ))
                 print(('{:6.1f} {:6.2f} {:6.2f} ' + \
                         '{:6.2f} {:6.2f} {:6.2f} {:6.2f} {:6.2f}').format( \
-                            tm[i],Tsp1[i],T1[i],Q1[i],Tsp2[i],T2[i],Q2[i],iae))
+                            tm[i],Tsp1[i],T1[i],Q1[i],Tsp2[i],T2[i],Q2[i],iae))'''
 
                 writer.writerow([
                     epi,
