@@ -1,6 +1,5 @@
 import numpy as np
 import random
-import torch
 from collections import deque, namedtuple
 from src.util import torchify
 
@@ -17,8 +16,8 @@ class ReplayBuffer:
         return {
             'observations': torchify(obs),
             'actions': torchify(act),
-            'next_observations': torchify(next_obs),
             'rewards': torchify(rew),
+            'next_observations': torchify(next_obs),
             'terminals': torchify(done),
         }
 
