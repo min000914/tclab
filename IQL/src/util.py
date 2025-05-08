@@ -419,6 +419,32 @@ def print_dataset_statistics(dataset):
     
     return rew.min(), rew.max()
 
+
+def print_dataset_statistics_numpy(dataset):
+    obs = dataset['observations']
+    next_obs = dataset['next_observations']
+    act = dataset['actions']
+    rew = dataset['rewards']
+
+    print("=== Dataset Statistics ===")
+
+    print("Observations:")
+    print(f"  min: {np.min(obs, axis=0)}")
+    print(f"  max: {np.max(obs, axis=0)}")
+
+    print("\nNext Observations:")
+    print(f"  min: {np.min(next_obs, axis=0)}")
+    print(f"  max: {np.max(next_obs, axis=0)}")
+
+    print("\nActions:")
+    print(f"  min: {np.min(act, axis=0)}")
+    print(f"  max: {np.max(act, axis=0)}")
+
+    print("\nRewards:")
+    print(f"  min: {np.min(rew)}")
+    print(f"  max: {np.max(rew)}")
+    
+    return np.min(rew), np.max(rew)
     
 def normalize_reward(r,REWARD_MIN=-50.0,REWARD_MAX=1.0,reward_scale=20.0):
     # 기본 정규화: [-60, 0] → [-1, 1] → [-5, 5]
@@ -447,11 +473,12 @@ def normalize(x, min_val, max_val, scale=1.0, mode='zero_one'):
     return x_norm * scale
 
 def unnormalize(x, min_val, max_val, scale=1.0, mode='zero_one'):
-    """
-    mode:
-    - 'zero_one': [0, 1] → [min_val, max_val]
-    - 'minus_one_one': [-1, 1] → [min_val, max_val]
-    """
+    
+    # 만약 min_val, max_val가 Tensor라면 Numpy로 변환
+    if isinstance(min_val, torch.Tensor):
+        min_val = min_val.cpu().numpy()
+    if isinstance(max_val, torch.Tensor):
+        max_val = max_val.cpu().numpy()
 
     if mode == 'zero_one':
         x_rescaled = x / scale
@@ -463,7 +490,7 @@ def unnormalize(x, min_val, max_val, scale=1.0, mode='zero_one'):
     return x_orig
 
 
-def normalize_dataset(dataset, reward_scale=1.0, obs_scale=1.0, act_scale=1.0):
+def normalize_dataset(dataset, obs_scale=1.0, act_scale=1.0):
     obs = dataset['observations']
     next_obs = dataset['next_observations']
     act = dataset['actions']
@@ -474,15 +501,6 @@ def normalize_dataset(dataset, reward_scale=1.0, obs_scale=1.0, act_scale=1.0):
     obs_maxs = torch.tensor([67.0, 65.0, 67.0, 65.0], device=obs.device)
     act_mins = torch.tensor([0.0, 0.0], device=act.device)
     act_maxs = torch.tensor([100.0, 100.0], device=act.device)
-
-    # rewards: [-1, 1] 정규화 후 scale
-    dataset['rewards'] = normalize(
-        dataset['rewards'], 
-        min_val=-50.0, 
-        max_val=0.0, 
-        scale=reward_scale,
-        mode='minus_one_one'
-    )
 
     # observations: [0, 1] 정규화 후 scale
     dataset['observations'] = normalize(
