@@ -95,8 +95,8 @@ def main(args):
     best_return = result['return mean']
     save_csv_png(all_data,0)
     
-    initial_bias_prob = args.bias_prob  # 시작 확률
-    final_bias_prob = 0.05
+    initial_exp_prob = args.exp_prob  # 시작 확률
+    final_exp_prob = 0.05
     for step in range(args.n_steps):
         if done:
             #if epi_num > 0:
@@ -112,6 +112,7 @@ def main(args):
             Tsp1 = generate_random_tsp(args.max_episode_steps, 'TSP1')
             Tsp2 = generate_random_tsp(args.max_episode_steps, 'TSP2')
             set_seed(args.seed)
+            exploration = False
 
         
         if (epi_step + 1) % args.max_episode_steps == 0:
@@ -140,29 +141,34 @@ def main(args):
 
         decay_rate = 0.99
         if (step) % 1000 == 0:
-            # decay는 적용하지만 final_bias_prob 이하로는 내려가지 않음
-            bias_prob = max(initial_bias_prob * (decay_rate ** (step// 1000)), final_bias_prob) 
+            # decay는 적용하지만 final_exp_prob 이하로는 내려가지 않음
+            exp_prob = max(initial_exp_prob * (decay_rate ** (step// 1000)), final_exp_prob) 
         
-        
-        if args.static_bias_prob == True and args.sample == False:
-            with torch.no_grad():
-                action = policy.act(torchify(obs), deterministic=False, sample=False).cpu().numpy()
-        elif args.static_bias_prob == True and args.sample == True:
-            with torch.no_grad():
-                action = policy.act(torchify(obs), deterministic=False, sample=True).cpu().numpy()
-        elif args.static_bias_prob == False and args.sample == False:
-            #print(f"bias_prob: {bias_prob:.4f}")
-            if bias_prob == final_bias_prob:
+        if not exploration:
+            if args.static_exp_prob == True and args.sample == False:
                 with torch.no_grad():
-                    #print("bias_prob",bias_prob)
-                    action = policy.act(torchify(obs), deterministic=False, bias_prob=bias_prob, sample=True).cpu().numpy()
-            else:
+                    action,exploration = policy.act(torchify(obs), deterministic=False, sample=False).cpu().numpy()
+            elif args.static_exp_prob == True and args.sample == True:
                 with torch.no_grad():
-                    action = policy.act(torchify(obs), deterministic=False, bias_prob=bias_prob, sample=False).cpu().numpy()
-        elif args.static_bias_prob == False and args.sample == True:
-            with torch.no_grad():
-                action = policy.act(torchify(obs), deterministic=False,bias_prob=bias_prob, sample=True).cpu().numpy()
-                
+                    action,exploration = policy.act(torchify(obs), deterministic=False, sample=True).cpu().numpy()
+            elif args.static_exp_prob == False and args.sample == False:
+                if exp_prob == final_exp_prob:
+                    with torch.no_grad():
+                        action,exploration = policy.act(torchify(obs), deterministic=False, exp_prob=exp_prob, sample=True).cpu().numpy()
+                else:
+                    with torch.no_grad():
+                        action,exploration = policy.act(torchify(obs), deterministic=False, exp_prob=exp_prob, sample=False).cpu().numpy()
+            elif args.static_exp_prob == False and args.sample == True:
+                with torch.no_grad():
+                    action,exploration = policy.act(torchify(obs), deterministic=False,exp_prob=exp_prob, sample=True).cpu().numpy()
+            exp_cnt=0
+        else:
+            action = np.array([prev_Q1, prev_Q2])
+            exp_cnt += 1
+            if exp_cnt > 4:
+                exploration = False
+                exp_cnt = 0
+            
         Q1, Q2 = action
         env.Q1(Q1)
         env.Q2(Q2)
@@ -209,7 +215,7 @@ def main(args):
             if (step + 1) % args.eval_period == 0:
                 result, all_data = eval_policy()
                 wandb.log({"step": step + 1})
-                print(f"{step+1} step: {bias_prob:.4f} bias_prob")
+                print(f"{step+1} step: {exp_prob:.4f} exp_prob")
                 if result['return mean'] > best_return:
                     save_csv_png(all_data,step+1)
                     best_return = result['return mean']
@@ -254,8 +260,8 @@ if __name__ == '__main__':
     parser.add_argument('--reward-scale',default=10.0)
     parser.add_argument('--max-episode-steps', type=int, default=1000)
     parser.add_argument('--noise', type=float, default=3.5)
-    parser.add_argument('--bias-prob', type=float, default=0.25)
-    parser.add_argument('--sample', action='store_true')
-    parser.add_argument('--static-bias-prob', default=False)
+    parser.add_argument('--exp-prob', type=float, default=0.25)
+    parser.add_argument('--sample', default=False)
+    parser.add_argument('--static-exp-prob', default=True)
 
     main(parser.parse_args())
