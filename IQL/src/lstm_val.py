@@ -26,12 +26,12 @@ def last_value_hold(seq, seq_length):
     # print(seq.shape)
     # print(last_value)
     # print(seq)
-    padded_seq = torch.cat((last_value, seq), dim=0)
-    return padded_seq.unsqueeze(0)  # (1, Seq, Feature)
+    padded_seq = torch.cat((seq,last_value), dim=0)
+    return padded_seq 
 
 
 def lstm_eval_policy(seed, env, policy, epi_num, max_episode_steps, eval_log_path,
-                         seq_length=20, obs_scale=1.0, act_scale=1.0, sleep_max=1.0, normalization=False, device="cuda:0"):
+                         seq_length=20, obs_scale=1.0, act_scale=1.0, sleep_max=1.0, normalization=True, act_normalization=True, device="cuda:0"):
     
     env.close()
     from tclab import setup
@@ -54,13 +54,15 @@ def lstm_eval_policy(seed, env, policy, epi_num, max_episode_steps, eval_log_pat
 
     total_reward = 0.0
 
-    obs_mins = torch.tensor([23.0, 25.0, 23.0, 25.0], device=device)
-    obs_maxs = torch.tensor([67.0, 65.0, 67.0, 65.0], device=device)
+    obs_mins = np.array([24.0, 25.0, 24.0, 25.0], dtype=np.float32)
+    obs_maxs = np.array([66.0, 65.0, 66.0, 65.0], dtype=np.float32)
+
     act_mins = torch.tensor([0.0, 0.0], device=device)
     act_maxs = torch.tensor([100.0, 100.0], device=device)
 
     obs_sequence = []
-    hidden_state = None  
+    hidden_state = None
+    #print("@@@@@@@@@@@@@@@@@@@@@@@@")  
     for i in range(max_episode_steps):
         sim_time = i * sleep_max
         env.update(t=sim_time)
@@ -72,29 +74,28 @@ def lstm_eval_policy(seed, env, policy, epi_num, max_episode_steps, eval_log_pat
         obs = np.array([T1[i], Tsp1[i], T2[i], Tsp2[i]], dtype=np.float32)
 
         if normalization:
-            obs_tensor = normalize(
-                obs,
-                min_val=obs_mins,  
-                max_val=obs_maxs,  
-                scale=obs_scale,
-                mode='zero_one'   
-            ).unsqueeze(0)
+            obs_normalized = (obs - obs_mins) / (obs_maxs - obs_mins)
+        else:
+            obs_normalized = obs
 
-        obs_sequence.append(obs)
-        if not normalization:
-            obs_tensor = torch.from_numpy(np.array(obs_sequence)).to(device).float()
+        obs_sequence.append(obs_normalized)
+        
+        #if not normalization:
+        obs_tensor = torch.from_numpy(np.array(obs_sequence)).to(device).float()
 
         if len(obs_sequence) < seq_length:
             obs_tensor = last_value_hold(obs_tensor, seq_length=seq_length)
         else:
-            obs_tensor = obs_tensor[-seq_length:].unsqueeze(0)
+            obs_tensor = obs_tensor[-seq_length:]
+            
+        obs_tensor = obs_tensor.unsqueeze(0) 
 
         with torch.no_grad():
             action,_ = policy.act(obs_tensor,  deterministic=True)
             #print(action)
             action = action.cpu().numpy()
         
-        if normalization:
+        if act_normalization:
             action = unnormalize(
                 action,
                 min_val=act_mins,
@@ -104,7 +105,7 @@ def lstm_eval_policy(seed, env, policy, epi_num, max_episode_steps, eval_log_pat
             )#.cpu().numpy()
         
         Q1[i], Q2[i] = action.squeeze(0)
-
+        #print(Q1[i], Q2[i])
         env.Q1(Q1[i])
         env.Q2(Q2[i])
 
