@@ -118,7 +118,7 @@ def generate_random_tsp(length, name='TSP'):
         elif length == 1200:
             duration = int(np.clip(np.random.normal(480, 100), 160, 800))
         else:
-            duration = 5
+            duration = 1
         temp = np.random.uniform(25, 65)
         end = min(i + duration, length)
         tsp[i:end] = temp
@@ -127,120 +127,99 @@ def generate_random_tsp(length, name='TSP'):
         i = end
     return tsp
 
-'''import time
-import os
-def real_evalutate_policy(seed, env, policy,step_num, epi_num, max_episode_steps,
-                          eval_log_path,deterministic=True,st_temp = 29.0,
-                          sleep_max=1.0):
-    set_seed(seed)
-    #print(f"Episode{step_num} eval start...")
-    os.makedirs(eval_log_path, exist_ok=True)
+import time
+import tclab
+def real_evalutate_policy(seed, policy, epi_num, max_episode_steps, eval_log_path,
+                         st_temp= 29.0, obs_scale=1.0, act_scale=1.0, sleep_max=1.0, normalization=False,device="cuda:0"):
+    env = tclab.TCLab()
+    set_seed(epi_num)
+
     env.Q1(0)
     env.Q2(0)
-    # 안전 온도 도달까지 대기
-    #print(f'Check that temperatures are < {st_temp} degC before starting')
-    i = 0
     while env.T1 >= st_temp or env.T2 >= st_temp:
-        #print(f'Time: {i} T1: {env.T1} T2: {env.T2}')
-        i += 20
-        time.sleep(20)
+            #print(f'Time: {i} T1: {env.T1} T2: {env.T2}')
+            time.sleep(20)
     Tsp1 = generate_random_tsp(max_episode_steps, 'TSP1')
     Tsp2 = generate_random_tsp(max_episode_steps, 'TSP2')
+    set_seed(seed)
+
     tm = np.zeros(max_episode_steps)
     T1 = np.ones(max_episode_steps) * env.T1
     T2 = np.ones(max_episode_steps) * env.T2
     Q1 = np.zeros(max_episode_steps)
     Q2 = np.zeros(max_episode_steps)
+
+    total_reward = 0.0
+    dt_error = 0.0
     start_time = time.time()
     prev_time = start_time
-    dt_error = 0.0
-    # Integral error
-    ierr1 = 0.0
-    ierr2 = 0.0
-    # Integral absolute error
-    iae = 0.0
-    total_reward = 0.
-    csv_filename = os.path.join(eval_log_path,f'episode_{step_num}_data.csv')
-    with open(csv_filename, 'w', newline='') as fid:
-        writer = csv.writer(fid)
-        writer.writerow(['step_num', 'Time', 'Q1', 'Q2', 'T1', 'T2', 'TSP1', 'TSP2'])
-        for i in range(max_episode_steps):
-            sleep = sleep_max - (time.time() - prev_time) - dt_error
-            if sleep >= 1e-4:
-                time.sleep(sleep - 1e-4)
-            else:
-                #print('exceeded max cycle time by ' + str(abs(sleep)) + ' sec')
-                time.sleep(1e-4)
+    
+    for i in range(max_episode_steps):
+        sleep = sleep_max - (time.time() - prev_time) - dt_error
+        if sleep >= 1e-4:
+            time.sleep(sleep - 1e-4)
+        else:
+            print('exceeded max cycle time by ' + str(abs(sleep)) + ' sec')
+            time.sleep(1e-4)
 
-            t = time.time()
-            dt = t - prev_time
-            if (sleep>=1e-4):
-                dt_error = dt-sleep_max+0.009
-            else:
-                dt_error = 0.0
-            prev_time = t
-            tm[i] = t - start_time
-            
-            # Read temperatures in Kelvin 
-            T1[i] = env.T1
-            T2[i] = env.T2
-            #obs = np.array([T1[i], T2[i], Tsp1[i], Tsp2[i]], dtype=np.float32)
-            dT1=T1[i-1]-T1[i]
-            dT2=T2[i-1]-T2[i]
-            obs = np.array([T1[i], T2[i], Tsp1[i], Tsp2[i], Q1[i-1],Q2[i-1],dT1,dT2], dtype=np.float32)
-            with torch.no_grad():
-                action = policy.act(torchify(obs), deterministic=deterministic).cpu().numpy()
-            Q1[i],Q2[i]=action    
-            
-            env.Q1(Q1[i])
-            env.Q2(Q2[i])
-            reward = -np.linalg.norm([T1[i] - Tsp1[i], T2[i] - Tsp2[i]])
-            total_reward += reward
-            print("{:>6} {:>6} {:>6} {:>6} {:>6} {:>6} {:>6} {:>6}".format(
-                    'Time', 'Tsp1', 'T1', 'Q1', 'Tsp2', 'T2', 'Q2', 'IAE'
-                ))
-            print(('{:6.1f} {:6.2f} {:6.2f} ' + \
-                    '{:6.2f} {:6.2f} {:6.2f} {:6.2f} {:6.2f}').format( \
-                        tm[i],Tsp1[i],T1[i],Q1[i],Tsp2[i],T2[i],Q2[i],iae))
-            writer.writerow([
-                    step_num,
-                    f"{tm[i]:.2f}",
-                    f"{Q1[i]:.2f}",
-                    f"{Q2[i]:.2f}",
-                    f"{T1[i]:.2f}",
-                    f"{T2[i]:.2f}",
-                    f"{Tsp1[i]:.2f}",
-                    f"{Tsp2[i]:.2f}"
-                ])
-            
-        plt.figure(figsize=(10, 7))
-        ax = plt.subplot(2, 1, 1)
-        ax.grid()
-        plt.plot(tm,Tsp1,'k--',label=r'$T_1$ set point')
-        plt.plot(tm,T1,'b.',label=r'$T_1$ measured')
-        plt.plot(tm,Tsp2,'k-',label=r'$T_2$ set point')
-        plt.plot(tm,T2,'r.',label=r'$T_2$ measured')
-        plt.ylabel(r'Temperature ($^oC$)')
-        plt.title(f'Episode {step_num}')
-        plt.legend(loc='best')
+        t = time.time()
+        dt = t - prev_time
+        if (sleep>=1e-4):
+            dt_error = dt-sleep_max+0.009
+        else:
+            dt_error = 0.0
+        prev_time = t
+        tm[i] = t - start_time
 
-        ax = plt.subplot(2, 1, 2)
-        ax.grid()
-        plt.plot(tm,Q1,'b-',label=r'$Q_1$')
-        plt.plot(tm,Q2,'r:',label=r'$Q_2$')
-        plt.ylabel('Heater Output (%)')
-        plt.xlabel('Time (sec)')
-        plt.legend(loc='best')
+        T1[i] = env.T1
+        T2[i] = env.T2
 
-        plt.tight_layout()
-        png_filename=os.path.join(eval_log_path,f'episode_{step_num}_plot.png')
-        plt.savefig(png_filename)
-        plt.close()
+        if i == 0:
+            dT1, dT2 = 0.0, 0.0
+        elif i<4:
+            dT1, dT2= T1[i]-T1[i-1], T2[i]-T2[i-1]
+        else:
+            dT1 = T1[i] - T1[i - 4] 
+            dT2 = T2[i] - T2[i - 4]
+
+
+       
+        obs = np.array([T1[i], Tsp1[i], dT1, T2[i], Tsp2[i], dT2], dtype=np.float32)
+
         
-        env.Q1(0)
-        env.Q2(0)
-        print("All episodes finished.")
-        return total_reward'''
+        with torch.no_grad():
+            if normalization:
+                action,_ = policy.act(obs, deterministic=True)
+            else:
+                action,_ = policy.act(torchify(obs), deterministic=True)
+                action = action.cpu().numpy()
+        
+        Q1[i], Q2[i] = action
+
+        env.Q1(Q1[i])
+        env.Q2(Q2[i])
+
+        reward = -np.linalg.norm([T1[i] - Tsp1[i], T2[i] - Tsp2[i]])
+        total_reward += reward
+
+    env.Q1(0)
+    env.Q2(0)
+    env.close()
+
+    # 결과 저장
+    path = os.path.join(eval_log_path, f"{seed}seed", f"{epi_num}epi")
+    return {
+        "path": path,
+        "tm": tm,
+        "Q1": Q1,
+        "Q2": Q2,
+        "T1": T1,
+        "T2": T2,
+        "Tsp1": Tsp1,
+        "Tsp2": Tsp2,
+        "total_reward": total_reward,
+    }
+
 
 
 import os
@@ -268,8 +247,8 @@ def sim_evalutate_policy(seed, env, policy, epi_num, max_episode_steps, eval_log
     total_reward = 0.0
     '''obs_mins = torch.tensor([23.0, 25.0, -1.3, 23.0, 25.0, -1.3], device=device)
     obs_maxs = torch.tensor([67.0, 65.0, 1.3, 67.0, 65.0, 1.3], device=device)'''
-    obs_mins = torch.tensor([23.0, 25.0, 23.0, 25.0], device=device)
-    obs_maxs = torch.tensor([67.0, 65.0, 67.0, 65.0], device=device)
+    obs_mins = torch.tensor([24.0, 25.0, 24.0, 25.0], device=device)
+    obs_maxs = torch.tensor([66.0, 65.0, 66.0, 65.0], device=device)
     act_mins = torch.tensor([0.0, 0.0], device=device)
     act_maxs = torch.tensor([100.0, 100.0], device=device)
 
@@ -306,9 +285,10 @@ def sim_evalutate_policy(seed, env, policy, epi_num, max_episode_steps, eval_log
         
         with torch.no_grad():
             if normalization:
-                action = policy.act(obs, deterministic=True)
+                action,_ = policy.act(obs, deterministic=True)
             else:
-                action = policy.act(torchify(obs), deterministic=True).cpu().numpy()
+                action,_ = policy.act(torchify(obs), deterministic=True)
+                action = action.cpu().numpy()
         #print(f"action: {action}")
         if normalization:
             action = unnormalize(
@@ -402,23 +382,32 @@ def print_dataset_statistics(dataset):
     print("=== Dataset Statistics ===")
 
     print("Observations:")
-    print(f"  min: {obs.min(dim=0).values}")
-    print(f"  max: {obs.max(dim=0).values}")
+    obs_min, obs_min_idx = obs.min(dim=0)
+    obs_max, obs_max_idx = obs.max(dim=0)
+    print(f"  min: {obs_min} at index {obs_min_idx}")
+    print(f"  max: {obs_max} at index {obs_max_idx}")
 
     print("\nNext Observations:")
-    print(f"  min: {next_obs.min(dim=0).values}")
-    print(f"  max: {next_obs.max(dim=0).values}")
+    next_obs_min, next_obs_min_idx = next_obs.min(dim=0)
+    next_obs_max, next_obs_max_idx = next_obs.max(dim=0)
+    print(f"  min: {next_obs_min} at index {next_obs_min_idx}")
+    print(f"  max: {next_obs_max} at index {next_obs_max_idx}")
 
     print("\nActions:")
-    print(f"  min: {act.min(dim=0).values}")
-    print(f"  max: {act.max(dim=0).values}")
+    act_min, act_min_idx = act.min(dim=0)
+    act_max, act_max_idx = act.max(dim=0)
+    print(f"  min: {act_min} at index {act_min_idx}")
+    print(f"  max: {act_max} at index {act_max_idx}")
 
     print("\nRewards:")
-    print(f"  min: {rew.min()}")
-    print(f"  max: {rew.max()}")
+    rew_min = rew.min()
+    rew_max = rew.max()
+    rew_min_idx = rew.argmin()
+    rew_max_idx = rew.argmax()
+    print(f"  min: {rew_min} at index {rew_min_idx}")
+    print(f"  max: {rew_max} at index {rew_max_idx}")
     
-    return rew.min(), rew.max()
-
+    return rew_min, rew_max
 
 def print_dataset_statistics_numpy(dataset):
     obs = dataset['observations']
@@ -490,15 +479,15 @@ def unnormalize(x, min_val, max_val, scale=1.0, mode='zero_one'):
     return x_orig
 
 
-def normalize_dataset(dataset, obs_scale=1.0, act_scale=1.0):
+def normalize_dataset(dataset, obs_scale=1.0, act_scale=1.0, act_normalization=False):
     obs = dataset['observations']
     next_obs = dataset['next_observations']
     act = dataset['actions']
 
     '''obs_mins = torch.tensor([23.0, 25.0, -1.3, 23.0, 25.0, -1.3], device=obs.device)
     obs_maxs = torch.tensor([67.0, 65.0, 1.3, 67.0, 65.0, 1.3], device=obs.device)'''
-    obs_mins = torch.tensor([23.0, 25.0,  23.0, 25.0], device=obs.device)
-    obs_maxs = torch.tensor([67.0, 65.0, 67.0, 65.0], device=obs.device)
+    obs_mins = torch.tensor([24.0, 25.0, 24.0, 25.0], device=obs.device)
+    obs_maxs = torch.tensor([66.0, 65.0, 66.0, 65.0], device=obs.device)
     act_mins = torch.tensor([0.0, 0.0], device=act.device)
     act_maxs = torch.tensor([100.0, 100.0], device=act.device)
 
@@ -521,13 +510,14 @@ def normalize_dataset(dataset, obs_scale=1.0, act_scale=1.0):
     )
 
     # actions: [0, 1] 정규화 후 scale
-    dataset['actions'] = normalize(
-        act,
-        min_val=act_mins,
-        max_val=act_maxs,
-        scale=act_scale,
-        mode='zero_one'
-    )
+    if act_normalization:
+        dataset['actions'] = normalize(
+            act,
+            min_val=act_mins,
+            max_val=act_maxs,
+            scale=act_scale,
+            mode='zero_one'
+        )
 
     return dataset
 
