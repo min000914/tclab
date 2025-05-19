@@ -28,38 +28,44 @@ class GaussianPolicy(nn.Module):
         scale_tril = torch.diag(std)
         return MultivariateNormal(mean, scale_tril=scale_tril)
 
-    def act(self, obs, deterministic=False, enable_grad=False, bias_prob=0.15, sample=False):
+    def act(self, obs, deterministic=False, enable_grad=False, exp_prob=0.15, sample=False, noise=0.0):
         with torch.set_grad_enabled(enable_grad):
             #print("obs",obs.shape)
             dist = self(obs)
 
             if deterministic:
                 action = dist.mean
+                exp = False
             else:
-                if torch.rand(1).item() < bias_prob:
+                if torch.rand(1).item() < exp_prob:
                     obs = obs.detach()  # 그래디언트 방지
-                    action = torch.empty(2,device=obs.device)
-                        
-                    eT1= obs[1] - obs[0]
-                    #eT2= obs[3] - obs[2]
-                    eT2= obs[4] - obs[3]
+
+                    eT1 = obs[1] - obs[0]
+                    eT2 = obs[4] - obs[3]
                     
-                    scale = 12  # 스케일 클수록 극단적 (10~20 추천)
-                    action[0] = 100.0 * sigmoid(scale * eT1)
-                    action[1] = 100.0 * sigmoid(scale * eT2)
-                else:
-                    if sample:
-                        action = dist.sample()
-                        noise = torch.randn_like(action) * 5  # 표준편차 0.03의 가우시안 노이즈
-                        #action = action + noise
+                    action = dist.mean
+
+                    noise = torch.randn_like(action) * noise
+                    
+                    # eT1에 대한 노이즈
+                    if eT1 >= 0:
+                        noise[0] = torch.abs(noise[0]) if torch.rand(1).item() > 0.2 else -torch.abs(noise[0]) // 2
                     else:
-                        action = dist.mean
-                '''action = dist.sample()
-                noise = torch.randn_like(action) * noise_D  # 표준편차 0.03의 가우시안 노이즈
-                action = action + noise'''
-                
+                        noise[0] = -torch.abs(noise[0]) if torch.rand(1).item() > 0.2 else torch.abs(noise[0]) // 2
+                    
+                    # eT2에 대한 노이즈
+                    if eT2 >= 0:
+                        noise[1] = torch.abs(noise[1]) if torch.rand(1).item() > 0.2 else -torch.abs(noise[1]) // 2
+                    else:
+                        noise[1] = -torch.abs(noise[1]) if torch.rand(1).item() > 0.2 else torch.abs(noise[1]) // 2
+
+                    action = action + noise
+                    exp = False
+                else:
+                    action = dist.mean
+                    exp = False
             #print(action)    
-            return torch.clamp(action, 0.0, 100.0)
+            return torch.clamp(action, 0.0, 100.0), exp
             #return torch.clamp(action, 0.0, 1.0)
 
 
