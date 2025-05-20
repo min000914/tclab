@@ -1,7 +1,7 @@
 import numpy as np
 import random
 from collections import deque, namedtuple
-from src.util import torchify
+from src.util import torchify, normalize_reward, print_dataset_statistics
 
 class ReplayBuffer:
     def __init__(self, capacity=100000):
@@ -22,7 +22,12 @@ class ReplayBuffer:
         }
 
     def load_dataset(self, dataset_path):
-        dataset = np.load(dataset_path)
+        dataset_np = np.load(dataset_path)
+        dataset = {k: v for k, v in dataset_np.items()}
+
+        dataset['rewards'] = normalize_reward(
+            dataset['rewards']
+        )
         for i in range(len(dataset['observations'])):
             transition = (
                 dataset['observations'][i],
@@ -32,6 +37,8 @@ class ReplayBuffer:
                 dataset['terminals'][i]
             )
             self.add(transition)
+        print(f"{len(self.buffer)} transitions loaded into ReplayBuffer.")
+        
     def __len__(self):
         return len(self.buffer)
     
