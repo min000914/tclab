@@ -37,21 +37,6 @@ class ImplicitQLearning(nn.Module):
             next_v = self.vf(next_observations)
 
 
-        # obs2 = observations[:, 1]  # 2번째 column
-        # obs4 = observations[:, 3]  # 4번째 column
-        
-        # next_obs2 = next_observations[:, 1]
-        # next_obs4 = next_observations[:, 3]
-
-        # 2번째나 4번째 중 하나라도 다르면 terminal=1.0
-        # diff_mask = (obs2 != next_obs2) | (obs4 != next_obs4)
-        # terminals tensor를 수정 (in-place)
-        # terminals[diff_mask] = 1.0
-        
-        # v, next_v = compute_batched(self.vf, [observations, next_observations])
-
-        #print("observations",observations.shape)
-        #print("actions",actions.shape)
         v = self.vf(observations)
         adv = target_q - v
         v_loss = asymmetric_l2_loss(adv, self.tau)
