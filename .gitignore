@@ -12,6 +12,7 @@ IQL/wandb
 /data
 data.csv
 
+*.pt
 test.ipynb
 *.gif
 
