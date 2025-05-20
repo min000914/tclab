@@ -224,7 +224,8 @@ def real_evalutate_policy(seed, policy, epi_num, max_episode_steps, eval_log_pat
 
 import os
 def sim_evalutate_policy(seed, env, policy, epi_num, max_episode_steps, eval_log_path,
-                         obs_scale=1.0, act_scale=1.0, sleep_max=1.0, normalization=False,device="cuda:0"):
+                         obs_scale=1.0, act_scale=1.0, sleep_max=1.0, normalization=False
+                         ,action_norm=False,lab_num=5,device="cuda:0"):
     env.close()
     from tclab import setup
     lab = setup(connected=False)
@@ -245,10 +246,12 @@ def sim_evalutate_policy(seed, env, policy, epi_num, max_episode_steps, eval_log
     Q2 = np.zeros(max_episode_steps)
 
     total_reward = 0.0
-    '''obs_mins = torch.tensor([23.0, 25.0, -1.3, 23.0, 25.0, -1.3], device=device)
-    obs_maxs = torch.tensor([67.0, 65.0, 1.3, 67.0, 65.0, 1.3], device=device)'''
-    obs_mins = torch.tensor([24.0, 25.0, 24.0, 25.0], device=device)
-    obs_maxs = torch.tensor([66.0, 65.0, 66.0, 65.0], device=device)
+    if lab_num == 5:
+        obs_mins = torch.tensor([23.0, 25.0, -1.3, 23.0, 25.0, -1.3], device=device)
+        obs_maxs = torch.tensor([67.0, 65.0, 1.3, 67.0, 65.0, 1.3], device=device)
+    else: 
+        obs_mins = torch.tensor([24.0, 25.0, 24.0, 25.0], device=device)
+        obs_maxs = torch.tensor([66.0, 65.0, 66.0, 65.0], device=device)
     act_mins = torch.tensor([0.0, 0.0], device=device)
     act_maxs = torch.tensor([100.0, 100.0], device=device)
 
@@ -269,10 +272,12 @@ def sim_evalutate_policy(seed, env, policy, epi_num, max_episode_steps, eval_log
             dT2 = T2[i] - T2[i - 4]
             prevQ1 = Q1[i - 1]
             prevQ2 = Q2[i - 1]
-
+        
+        if lab_num==5:
+            obs = np.array([T1[i], Tsp1[i], dT1, T2[i], Tsp2[i], dT2], dtype=np.float32)
         #obs = np.array([T1[i], T2[i], Tsp1[i], Tsp2[i], prevQ1,prevQ2,dT1,dT2], dtype=np.float32)
-        obs = np.array([T1[i], Tsp1[i], dT1, T2[i], Tsp2[i], dT2], dtype=np.float32)
-        #obs = np.array([T1[i], Tsp1[i], T2[i],Tsp2[i]], dtype=np.float32)
+        else:
+            obs = np.array([T1[i], Tsp1[i], T2[i],Tsp2[i]], dtype=np.float32)
         if normalization:
             obs = normalize(
                 obs,
@@ -285,19 +290,21 @@ def sim_evalutate_policy(seed, env, policy, epi_num, max_episode_steps, eval_log
         
         with torch.no_grad():
             if normalization:
-                action,_ = policy.act(obs, deterministic=True)
+                action = policy.act(obs, deterministic=True)
             else:
-                action,_ = policy.act(torchify(obs), deterministic=True)
-                action = action.cpu().numpy()
+                action = policy.act(torchify(obs), deterministic=True)
+        
+        action = action.cpu().numpy()
+        
         #print(f"action: {action}")
-        if normalization:
+        if action_norm:
             action = unnormalize(
                 action,
                 min_val=act_mins,
                 max_val=act_maxs,
                 scale=act_scale,
                 mode='zero_one'
-            ).cpu().numpy()
+            )
         
         Q1[i], Q2[i] = action
 
@@ -435,7 +442,7 @@ def print_dataset_statistics_numpy(dataset):
     
     return np.min(rew), np.max(rew)
     
-def normalize_reward(r,REWARD_MIN=-50.0,REWARD_MAX=1.0,reward_scale=20.0):
+def normalize_reward(r,REWARD_MIN=-49.0,REWARD_MAX=0.0,reward_scale=5.0):
     # 기본 정규화: [-60, 0] → [-1, 1] → [-5, 5]
     r_norm = 2 * (r - REWARD_MIN) / (REWARD_MAX - REWARD_MIN + 1e-8) - 1
     scaled_reward = r_norm * reward_scale
@@ -479,15 +486,18 @@ def unnormalize(x, min_val, max_val, scale=1.0, mode='zero_one'):
     return x_orig
 
 
-def normalize_dataset(dataset, obs_scale=1.0, act_scale=1.0, act_normalization=False):
+def normalize_dataset(dataset, lab_num, obs_scale=1.0, act_scale=1.0, action_norm=False):
     obs = dataset['observations']
     next_obs = dataset['next_observations']
     act = dataset['actions']
-
-    '''obs_mins = torch.tensor([23.0, 25.0, -1.3, 23.0, 25.0, -1.3], device=obs.device)
-    obs_maxs = torch.tensor([67.0, 65.0, 1.3, 67.0, 65.0, 1.3], device=obs.device)'''
-    obs_mins = torch.tensor([24.0, 25.0, 24.0, 25.0], device=obs.device)
-    obs_maxs = torch.tensor([66.0, 65.0, 66.0, 65.0], device=obs.device)
+    
+    if lab_num == 5:
+        obs_mins = torch.tensor([24.0, 25.0, -1.3, 24.0, 25.0, -1.3], device=obs.device)
+        obs_maxs = torch.tensor([66.0, 65.0, 1.3, 66.0, 65.0, 1.3], device=obs.device)
+    else:
+        obs_mins = torch.tensor([24.0, 25.0, 24.0, 25.0], device=obs.device)
+        obs_maxs = torch.tensor([66.0, 65.0, 66.0, 65.0], device=obs.device)
+        
     act_mins = torch.tensor([0.0, 0.0], device=act.device)
     act_maxs = torch.tensor([100.0, 100.0], device=act.device)
 
@@ -510,7 +520,7 @@ def normalize_dataset(dataset, obs_scale=1.0, act_scale=1.0, act_normalization=F
     )
 
     # actions: [0, 1] 정규화 후 scale
-    if act_normalization:
+    if action_norm:
         dataset['actions'] = normalize(
             act,
             min_val=act_mins,
