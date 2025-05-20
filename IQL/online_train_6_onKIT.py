@@ -30,6 +30,7 @@ def main(args):
     obs_dim = args.obs_dim
     act_dim = 2
     buffer = ReplayBuffer()
+    buffer.load_dataset("/home/minchanggi/code/TCLab/data/PID2MPC/NPZ/online8_delta5T_2.npz")
 
     policy_cls =GaussianPolicy
     policy = policy_cls(obs_dim, act_dim, args.hidden_dim, args.n_hidden).to(device)
@@ -82,9 +83,10 @@ def main(args):
         wandb.log(result)
         return result, all_datas
 
-    result,all_data= eval_policy()
+    '''result,all_data= eval_policy()
     best_return = result['return mean']
-    save_csv_png(all_data,0)
+    save_csv_png(all_data,0)'''
+    best_return=-6093
     
     patience = args.patience            # 조기 중단 대기 횟수
     min_delta = 1        # 최소 변화량
@@ -97,7 +99,7 @@ def main(args):
     done = 1.0 
     initial_exp_prob = args.exp_prob  # 시작 확률
     final_exp_prob = 0.03
-    st_temp= 29.0
+    st_temp= 30.0
     sleep_max=1.0
     
     for step in range(args.n_steps):
@@ -116,7 +118,8 @@ def main(args):
             dt_error = 0.0
             while env.T1 >= st_temp or env.T2 >= st_temp:
                 time.sleep(20)
-                
+                print(env.T1, env.T2, st_temp)
+            print("done wait")
             tm_list = np.zeros(args.max_episode_steps)
             T1_list = np.ones(args.max_episode_steps) * env.T1
             T2_list = np.ones(args.max_episode_steps) * env.T2
@@ -150,12 +153,12 @@ def main(args):
             decay_step = step
             exp_prob = max(initial_exp_prob * (decay_rate ** (decay_step // 1000)), final_exp_prob) 
         
-        if args.static_exp_prob == True:
+        #if args.static_exp_prob == True:
+        with torch.no_grad():
+            action = policy.act(torchify(obs), deterministic=False, exp_prob=args.exp_prob, noise=args.noise,sample=False)
+        ''' else:
             with torch.no_grad():
-                action,_ = policy.act(torchify(obs), deterministic=False, exp_prob=args.exp_prob, noise=args.noise,sample=False)
-        else:
-            with torch.no_grad():
-                action,_ = policy.act(torchify(obs), deterministic=False, exp_prob=exp_prob, noise=args.noise, sample=False)
+                action,_ = policy.act(torchify(obs), deterministic=False, exp_prob=exp_prob, noise=args.noise, sample=False)'''
         action = action.cpu().numpy()        
             
         Q1, Q2 = action
@@ -237,7 +240,7 @@ def main(args):
                 print(f"{step+1} step: {exp_prob:.4f} exp_prob")
                 save_csv_png(all_data,step+1)
                 if current_return > best_return + min_delta:
-                    
+
                     best_return = current_return
                     best_path = log.dir / 'best.pt'
                     torch.save(iql.state_dict(), best_path)
@@ -282,7 +285,7 @@ if __name__ == '__main__':
     parser.add_argument('--tau', type=float, default=0.7)
     parser.add_argument('--beta', type=float, default=3.0)
     parser.add_argument('--eval-period', type=int, default=5000)
-    parser.add_argument('--n-eval-episodes', type=int, default=4)
+    parser.add_argument('--n-eval-episodes', type=int, default=40)
     parser.add_argument('--n-eval-seeds', type=int, default=1)
     parser.add_argument('--reward-scale',default=10.0)
     parser.add_argument('--max-episode-steps', type=int, default=1200)
@@ -291,6 +294,6 @@ if __name__ == '__main__':
     parser.add_argument('--sample', default=False)
     parser.add_argument('--static-exp-prob', default=False)
     parser.add_argument('--patience', type=int, default=20)
-    parser.add_argument('--save-data-path', default="/home/minchanggi/code/TCLab/data/online_train_data")
+    parser.add_argument('--save-data-path', default="/home/minchanggi/code/TCLab/data/online_train_data/new/")
 
     main(parser.parse_args())
