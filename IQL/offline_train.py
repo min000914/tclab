@@ -20,7 +20,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print("🚀 Using device:", device)
 
 
-def get_env_and_dataset(log, dataset_path, simmul, normalizaion, reward_scale=1.0, obs_scale=1.0, act_scale=1.0):
+def get_env_and_dataset(log, dataset_path, simmul, normalizaion, reward_norm, action_norm, reward_scale=1.0, obs_scale=1.0, act_scale=1.0, lab_num=1):
     if simmul:
         from tclab import setup
         lab = setup(connected=False)
@@ -36,10 +36,14 @@ def get_env_and_dataset(log, dataset_path, simmul, normalizaion, reward_scale=1.
     adjusted_min = math.floor(reward_min)
     adjusted_max = math.ceil(reward_max)
     print(dataset)
+    print(normalizaion,reward_norm,action_norm, type(normalizaion))
     if normalizaion:
-        dataset = normalize_dataset(dataset, reward_scale=reward_scale, obs_scale=obs_scale, act_scale=act_scale)
-    else:
+        print("@@@@@@@@@@@@@222")
+        dataset = normalize_dataset(dataset, lab_num, obs_scale=obs_scale, act_scale=act_scale, action_norm=action_norm)
+    
+    if reward_norm:
         dataset['rewards'] = normalize_reward(dataset['rewards'], REWARD_MIN=adjusted_min,REWARD_MAX=adjusted_max,reward_scale=reward_scale)
+        
     print_dataset_statistics(dataset=dataset)
     print(dataset)
     
@@ -62,20 +66,19 @@ def main(args):
     env, dataset = get_env_and_dataset(log, args.dataset_path, simmul=args.simmul, 
                                        reward_scale=args.reward_scale, obs_scale=args.obs_scale,
                                        normalizaion=args.normalization,
-                                       act_scale=args.act_scale)
+                                       action_norm=args.action_norm,
+                                       reward_norm=args.reward_norm,
+                                       act_scale=args.act_scale,
+                                       lab_num=args.lab_num
+                                       )
     
 
     obs_dim = dataset['observations'].shape[1]
-    #print(obs_dim,"@@@@@@@@@@@@")
     act_dim = dataset['actions'].shape[1]
     set_seed(args.seed)
 
-    if args.deterministic_policy:
-        policy = DeterministicPolicy(obs_dim, act_dim, hidden_dim=args.hidden_dim, 
-                                     n_hidden=args.n_hidden).to(device)
-    else:
-        print("GaussianPolicy Ready")
-        policy = GaussianPolicy(obs_dim, act_dim, hidden_dim=args.hidden_dim, n_hidden=args.n_hidden).to(device)
+
+    policy = GaussianPolicy(obs_dim, act_dim, hidden_dim=args.hidden_dim, n_hidden=args.n_hidden, norm=args.action_norm).to(device)
 
     def eval_policy():
         all_datas = []
@@ -93,6 +96,8 @@ def main(args):
                         obs_scale=args.obs_scale,
                         act_scale=args.act_scale,
                         normalization=args.normalization,
+                        action_norm=args.action_norm,
+                        lab_num=args.lab_num,
                     )
                     all_datas.append(data)
                     tsp_returns.append(data['total_reward']) 
@@ -121,6 +126,10 @@ def main(args):
     )
 
     best_return = -99999.0
+    patience = args.patience            # 조기 중단 대기 횟수
+    min_delta = 1        # 최소 변화량
+    no_improvement_steps = 0 # 개선되지 않은 스텝 카운트
+    
     for step in range(args.n_steps):
         batch = sample_batch(dataset, args.batch_size)
         batch = {k: v.to(device) for k, v in batch.items()}
@@ -129,14 +138,24 @@ def main(args):
         if (step + 1) % args.eval_period == 0:
             result, all_data = eval_policy()
             wandb.log({"step": step + 1})
-            if result['return mean'] > best_return:
+            current_return = result['return mean']
+            if current_return > best_return + min_delta:
                 save_csv_png(all_data,step+1)
-                best_return = result['return mean']
+                best_return = current_return
                 best_path = log.dir / 'best.pt'
                 torch.save(iql.state_dict(), best_path)
                 print(f"📈 Best model saved with return {best_return:.2f}")
                 wandb.run.summary['best_return'] = best_return
                 wandb.save(str(best_path))
+                no_improvement_steps = 0
+            else:
+                no_improvement_steps += 1
+                print(f"No improvement for {no_improvement_steps} steps...")
+
+            # Early Stopping 조건 확인
+            if no_improvement_steps >= patience:
+                print("⏹️ Early stopping triggered. Training stopped.")
+                break
 
 
     torch.save(iql.state_dict(), log.dir / 'final.pt')
@@ -149,7 +168,7 @@ if __name__ == '__main__':
     from argparse import ArgumentParser
     parser = ArgumentParser()
     parser.add_argument('--lab-name', default="TCLab")
-    parser.add_argument('--simmul', default=True)
+    parser.add_argument('--simmul', type=lambda x: x.lower() == 'true', default=True)
     parser.add_argument('--log-dir', required=True)
     parser.add_argument('--dataset-path', required=True)
     parser.add_argument('--eval-log-path', required=True)
@@ -169,7 +188,11 @@ if __name__ == '__main__':
     parser.add_argument('--n-eval-seeds', type=int, default=3)
     parser.add_argument('--max-episode-steps', type=int, default=1000)
     parser.add_argument('--reward-scale',type=int,default=10.0)
-    parser.add_argument('--normalization',default=False)
+    parser.add_argument('--normalization', type=lambda x: x.lower() == 'true', default=False)
+    parser.add_argument('--action-norm', type=lambda x: x.lower() == 'true', default=False)
+    parser.add_argument('--reward-norm', type=lambda x: x.lower() == 'true', default=True)
+    parser.add_argument('--patience', type=int, default=10)
+    parser.add_argument('--lab-num', type=int, default=1)
     parser.add_argument('--obs-scale',type=int,default=1.0)
     parser.add_argument('--act-scale',type=int,default=1.0)
     main(parser.parse_args())
