@@ -15,15 +15,17 @@ def sigmoid(x, scale=1.0):
 
 
 class GaussianPolicy(nn.Module):
-    def __init__(self, obs_dim, act_dim, hidden_dim=256, n_hidden=2):
+    def __init__(self, obs_dim, act_dim, hidden_dim=256, n_hidden=2, norm=False):
         super().__init__()
         self.net = mlp([obs_dim, *([hidden_dim] * n_hidden), act_dim])
         self.log_std = nn.Parameter(torch.zeros(act_dim, dtype=torch.float32))
-
+        self.norm =False
     def forward(self, obs):
         raw_mean = self.net(obs)
-        #mean = torch.sigmoid(raw_mean)
-        mean = torch.tanh(raw_mean) * 50.0 + 50.0
+        if self.norm:
+            mean = torch.sigmoid(raw_mean)
+        else:
+            mean = torch.tanh(raw_mean) * 50.0 + 50.0
         std = torch.exp(self.log_std.clamp(LOG_STD_MIN, LOG_STD_MAX))
         scale_tril = torch.diag(std)
         return MultivariateNormal(mean, scale_tril=scale_tril)
@@ -64,8 +66,11 @@ class GaussianPolicy(nn.Module):
                 else:
                     action = dist.mean
                     exp = False
-            #print(action)    
-            return torch.clamp(action, 0.0, 100.0), exp
+            #print(action)
+            if self.norm:
+                return torch.clamp(action, 0.0, 1.0)
+            else:
+                return torch.clamp(action, 0.0, 100.0)
             #return torch.clamp(action, 0.0, 1.0)
 
 
