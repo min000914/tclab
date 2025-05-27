@@ -14,9 +14,9 @@ from src.policy import GaussianPolicy, DeterministicPolicy
 from src.value_functions import TwinQ, ValueFunction
 from src.util import (
     generate_random_tsp, set_seed, torchify, Log,
-    sim_evalutate_policy,
     normalize_reward,save_csv_png
 )
+from src.validation import sim_evalutate_policy
 
 def get_env(simmul):
     if simmul:
