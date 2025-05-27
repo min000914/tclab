@@ -62,7 +62,6 @@ def lstm_eval_policy(seed, env, policy, epi_num, max_episode_steps, eval_log_pat
 
     obs_sequence = []
     hidden_state = None
-    #print("@@@@@@@@@@@@@@@@@@@@@@@@")  
     for i in range(max_episode_steps):
         sim_time = i * sleep_max
         env.update(t=sim_time)

@@ -12,7 +12,7 @@ from src.lstm_policy import LSTMPolicy
 from src.value_functions import TwinQ, ValueFunction
 from src.util import (
     set_seed, torchify, Log,
-    sample_batch, sim_evalutate_policy,
+    sample_batch,
     save_csv_png,print_dataset_statistics,normalize_dataset,normalize_reward
 )
 from src.lstm_val import lstm_eval_policy
@@ -71,7 +71,7 @@ def get_env_and_dataset(log, dataset_path, simmul, normalizaion, reward_scale=1.
     adjusted_max = math.ceil(reward_max)
     print(dataset)
     if normalizaion:
-        dataset = normalize_dataset(dataset, obs_scale=obs_scale, act_scale=act_scale, act_normalization=act_normalization)
+        dataset = normalize_dataset(dataset, obs_scale=obs_scale, act_scale=act_scale, action_norm=act_normalization)
     
     dataset['rewards'] = normalize_reward(dataset['rewards'], REWARD_MIN=adjusted_min,REWARD_MAX=adjusted_max,reward_scale=reward_scale)
     print_dataset_statistics(dataset=dataset)

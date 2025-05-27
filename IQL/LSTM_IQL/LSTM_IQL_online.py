@@ -14,7 +14,7 @@ from src.iql import ImplicitQLearning
 from src.value_functions import TwinQ, ValueFunction
 from src.util import (
     generate_random_tsp, set_seed, torchify, Log,
-    sim_evalutate_policy,normalize,unnormalize,
+    normalize,unnormalize,
     normalize_reward,save_csv_png
 )
 from src.lstm_val import lstm_eval_policy
