@@ -7,17 +7,16 @@ data/
 *.png
 *.out
 IQL/eval_log/
-IQL/log/
+IQL/log_collect/
 IQL/wandb
 /data
 data.csv
-
-*.sh
+fopdt.txt
 test.*
-*.pt
+
 test.ipynb
 *.gif
-
+*.sh
 *.log
 
 !img/
