@@ -5,7 +5,7 @@ from pathlib import Path
 import random
 import string
 import sys
-
+import os
 import numpy as np
 import torch
 import torch.nn as nn
@@ -91,21 +91,6 @@ def sample_batch(dataset, batch_size):
     return {k: v[indices] for k, v in dataset.items()}
 
 
-def evaluate_policy(env, policy, max_episode_steps, deterministic=True):
-    obs = env.reset()
-    total_reward = 0.
-    for _ in range(max_episode_steps):
-        with torch.no_grad():
-            action = policy.act(torchify(obs), deterministic=deterministic).cpu().numpy()
-        next_obs, reward, done, info = env.step(action)
-        total_reward += reward
-        if done:
-            break
-        else:
-            obs = next_obs
-    return total_reward
-
-
 def generate_random_tsp(length, name='TSP'):
     i = 0
     tsp = np.zeros(length)
@@ -122,214 +107,9 @@ def generate_random_tsp(length, name='TSP'):
         temp = np.random.uniform(25, 65)
         end = min(i + duration, length)
         tsp[i:end] = temp
-        #print("@@@@@@@@@@@@@@@@")
-        #print(f'  구간: {i:>3} ~ {end - 1:>3}, 목표 온도: {temp:.2f}°C')
         i = end
     return tsp
 
-import time
-import tclab
-def real_evalutate_policy(seed, policy, epi_num, max_episode_steps, eval_log_path,
-                         st_temp= 29.0, obs_scale=1.0, act_scale=1.0, sleep_max=1.0, normalization=False,device="cuda:0"):
-    env = tclab.TCLab()
-    set_seed(epi_num)
-
-    env.Q1(0)
-    env.Q2(0)
-    while env.T1 >= st_temp or env.T2 >= st_temp:
-            #print(f'Time: {i} T1: {env.T1} T2: {env.T2}')
-            time.sleep(20)
-    Tsp1 = generate_random_tsp(max_episode_steps, 'TSP1')
-    Tsp2 = generate_random_tsp(max_episode_steps, 'TSP2')
-    set_seed(seed)
-
-    tm = np.zeros(max_episode_steps)
-    T1 = np.ones(max_episode_steps) * env.T1
-    T2 = np.ones(max_episode_steps) * env.T2
-    Q1 = np.zeros(max_episode_steps)
-    Q2 = np.zeros(max_episode_steps)
-
-    total_reward = 0.0
-    dt_error = 0.0
-    start_time = time.time()
-    prev_time = start_time
-    
-    for i in range(max_episode_steps):
-        sleep = sleep_max - (time.time() - prev_time) - dt_error
-        if sleep >= 1e-4:
-            time.sleep(sleep - 1e-4)
-        else:
-            print('exceeded max cycle time by ' + str(abs(sleep)) + ' sec')
-            time.sleep(1e-4)
-
-        t = time.time()
-        dt = t - prev_time
-        if (sleep>=1e-4):
-            dt_error = dt-sleep_max+0.009
-        else:
-            dt_error = 0.0
-        prev_time = t
-        tm[i] = t - start_time
-
-        T1[i] = env.T1
-        T2[i] = env.T2
-
-        if i == 0:
-            dT1, dT2 = 0.0, 0.0
-        elif i<4:
-            dT1, dT2= T1[i]-T1[i-1], T2[i]-T2[i-1]
-        else:
-            dT1 = T1[i] - T1[i - 4] 
-            dT2 = T2[i] - T2[i - 4]
-
-
-       
-        obs = np.array([T1[i], Tsp1[i], dT1, T2[i], Tsp2[i], dT2], dtype=np.float32)
-
-        
-        with torch.no_grad():
-            if normalization:
-                action,_ = policy.act(obs, deterministic=True)
-            else:
-                action,_ = policy.act(torchify(obs), deterministic=True)
-                action = action.cpu().numpy()
-        
-        Q1[i], Q2[i] = action
-
-        env.Q1(Q1[i])
-        env.Q2(Q2[i])
-
-        reward = -np.linalg.norm([T1[i] - Tsp1[i], T2[i] - Tsp2[i]])
-        total_reward += reward
-
-    env.Q1(0)
-    env.Q2(0)
-    env.close()
-
-    # 결과 저장
-    path = os.path.join(eval_log_path, f"{seed}seed", f"{epi_num}epi")
-    return {
-        "path": path,
-        "tm": tm,
-        "Q1": Q1,
-        "Q2": Q2,
-        "T1": T1,
-        "T2": T2,
-        "Tsp1": Tsp1,
-        "Tsp2": Tsp2,
-        "total_reward": total_reward,
-    }
-
-
-
-import os
-def sim_evalutate_policy(seed, env, policy, epi_num, max_episode_steps, eval_log_path,
-                         obs_scale=1.0, act_scale=1.0, sleep_max=1.0, normalization=False
-                         ,action_norm=False,lab_num=5,device="cuda:0"):
-    env.close()
-    from tclab import setup
-    lab = setup(connected=False)
-    env = lab(synced=False)
-
-    set_seed(epi_num)
-
-    env.Q1(0)
-    env.Q2(0)
-    Tsp1 = generate_random_tsp(max_episode_steps, 'TSP1')
-    Tsp2 = generate_random_tsp(max_episode_steps, 'TSP2')
-    set_seed(seed)
-
-    tm = np.zeros(max_episode_steps)
-    T1 = np.ones(max_episode_steps) * env.T1
-    T2 = np.ones(max_episode_steps) * env.T2
-    Q1 = np.zeros(max_episode_steps)
-    Q2 = np.zeros(max_episode_steps)
-
-    total_reward = 0.0
-    if lab_num == 5:
-        obs_mins = torch.tensor([23.0, 25.0, -1.3, 23.0, 25.0, -1.3], device=device)
-        obs_maxs = torch.tensor([67.0, 65.0, 1.3, 67.0, 65.0, 1.3], device=device)
-    else: 
-        obs_mins = torch.tensor([24.0, 25.0, 24.0, 25.0], device=device)
-        obs_maxs = torch.tensor([66.0, 65.0, 66.0, 65.0], device=device)
-    act_mins = torch.tensor([0.0, 0.0], device=device)
-    act_maxs = torch.tensor([100.0, 100.0], device=device)
-
-    for i in range(max_episode_steps):
-        sim_time = i * sleep_max
-        env.update(t=sim_time)
-        tm[i] = sim_time
-
-        T1[i] = env.T1
-        T2[i] = env.T2
-
-        if i == 0:
-            dT1, dT2, prevQ1, prevQ2 = 0.0, 0.0, 29.0, 29.0
-        elif i<4:
-            dT1, dT2, prevQ1, prevQ2 = T1[i]-T1[i-1], T2[i]-T2[i-1], 29.0, 29.0
-        else:
-            dT1 = T1[i] - T1[i - 4] 
-            dT2 = T2[i] - T2[i - 4]
-            prevQ1 = Q1[i - 1]
-            prevQ2 = Q2[i - 1]
-        
-        if lab_num==5:
-            obs = np.array([T1[i], Tsp1[i], dT1, T2[i], Tsp2[i], dT2], dtype=np.float32)
-        #obs = np.array([T1[i], T2[i], Tsp1[i], Tsp2[i], prevQ1,prevQ2,dT1,dT2], dtype=np.float32)
-        else:
-            obs = np.array([T1[i], Tsp1[i], T2[i],Tsp2[i]], dtype=np.float32)
-        if normalization:
-            obs = normalize(
-                obs,
-                min_val=obs_mins,  # 학습 때 사용한 min
-                max_val=obs_maxs,  # 학습 때 사용한 max
-                scale=obs_scale,
-                mode='zero_one'    # obs는 0~1 정규화
-            )
-
-        
-        with torch.no_grad():
-            if normalization:
-                action = policy.act(obs, deterministic=True)
-            else:
-                action = policy.act(torchify(obs), deterministic=True)
-        
-        action = action.cpu().numpy()
-        
-        #print(f"action: {action}")
-        if action_norm:
-            action = unnormalize(
-                action,
-                min_val=act_mins,
-                max_val=act_maxs,
-                scale=act_scale,
-                mode='zero_one'
-            )
-        
-        Q1[i], Q2[i] = action
-
-        env.Q1(Q1[i])
-        env.Q2(Q2[i])
-
-        reward = -np.linalg.norm([T1[i] - Tsp1[i], T2[i] - Tsp2[i]])
-        total_reward += reward
-
-    env.Q1(0)
-    env.Q2(0)
-
-    # 결과 저장
-    path = os.path.join(eval_log_path, f"{seed}seed", f"{epi_num}epi")
-    return {
-        "path": path,
-        "tm": tm,
-        "Q1": Q1,
-        "Q2": Q2,
-        "T1": T1,
-        "T2": T2,
-        "Tsp1": Tsp1,
-        "Tsp2": Tsp2,
-        "total_reward": total_reward,
-    }
 
 
 def save_csv_png(all_data,step_num):
@@ -443,17 +223,11 @@ def print_dataset_statistics_numpy(dataset):
     return np.min(rew), np.max(rew)
     
 def normalize_reward(r,REWARD_MIN=-49.0,REWARD_MAX=0.0,reward_scale=5.0):
-    # 기본 정규화: [-60, 0] → [-1, 1] → [-5, 5]
     r_norm = 2 * (r - REWARD_MIN) / (REWARD_MAX - REWARD_MIN + 1e-8) - 1
     scaled_reward = r_norm * reward_scale
 
     return scaled_reward
 def normalize(x, min_val, max_val, scale=1.0, mode='zero_one'):
-    """
-    mode:
-    - 'zero_one': [min_val, max_val] → [0, 1] → (× scale)
-    - 'minus_one_one': [min_val, max_val] → [-1, 1] → (× scale)
-    """
     if not torch.is_tensor(x):
         x = torch.from_numpy(x).to(min_val.device)  # min_val.device로 올려야 device 맞음
 
@@ -486,12 +260,12 @@ def unnormalize(x, min_val, max_val, scale=1.0, mode='zero_one'):
     return x_orig
 
 
-def normalize_dataset(dataset, lab_num, obs_scale=1.0, act_scale=1.0, action_norm=False):
+def normalize_dataset(dataset, lab_num=1, obs_scale=1.0, act_scale=1.0, action_norm=False):
     obs = dataset['observations']
     next_obs = dataset['next_observations']
     act = dataset['actions']
     
-    if lab_num == 5:
+    if lab_num == 5 or lab_num==8:
         obs_mins = torch.tensor([24.0, 25.0, -1.3, 24.0, 25.0, -1.3], device=obs.device)
         obs_maxs = torch.tensor([66.0, 65.0, 1.3, 66.0, 65.0, 1.3], device=obs.device)
     else:
