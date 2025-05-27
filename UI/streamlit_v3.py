@@ -22,8 +22,8 @@ from IQL.src.util import torchify
 st.set_page_config(page_title="TCLab 제어 대시보드", layout="wide")
 st.title("🌡️ TCLab ‑ 실시간 제어")
 
-MODEL_PATH_MPC = "UI/model/MPC_based_RL.pt"
-MODEL_PATH_PID = "UI/model/PID_based_RL.pt"
+MODEL_PATH_MPC = "/home/minchanggi/code/TCLab/UI/model/MPC_based_RL.pt"
+MODEL_PATH_PID = "/home/minchanggi/code/TCLab/UI/model/PID_based_RL.pt"
 
 # 설정과 그래프 설정 영역을 좌우로 나누고 가운데 세로선 삽입
 col_left, col_divider, col_right = st.columns([1, 0.02, 2.5])
