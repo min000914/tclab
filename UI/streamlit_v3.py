@@ -154,20 +154,26 @@ with col_left:
     else:
         st.warning("연결되지 않았습니다.")
 
-
+    act_dim = 2
+    dt = 1.0
     if model == "희진":
         MODEL_PATH = MODEL_PATH_MPC
         obs_dim = 4
     elif model == "창기":
         MODEL_PATH = MODEL_PATH_PID
         obs_dim = 6
-    else:
+    elif model == "MPC":
         MODEL_PATH = None
         obs_dim = 0
-
-    act_dim = 2
-    dt = 1.0
+        dt=5.0
+    elif model == "MPC":
+        MODEL_PATH = None
+        obs_dim = 0
+    
     steps = int(x_axis_duration / dt)
+
+    
+    
 
 with col_divider:
     st.markdown(
@@ -220,7 +226,7 @@ with col_right:
         if model in ["희진", "창기"]:
             policy = load_iql_policy()
 
-        if model == "PID":
+        elif model == "PID":
             # PID 상수 및 함수 정의
             Kc, tauI, tauD, Kff = 9.24, 126.6, 8.90, -0.66
 
@@ -240,6 +246,12 @@ with col_right:
                 return op, I
 
             ierr1 = ierr2 = 0.0
+            
+        elif model == "MPC":
+            from mpc_lib import mpc_init
+            mpc_ctl = mpc_init()
+            ctrl_Tsp1 = st.session_state.Tsp1[::5][:steps]
+            ctrl_Tsp2 = st.session_state.Tsp2[::5][:steps]
 
         for i in range(steps):
             if mode == "Simulator":
@@ -292,13 +304,16 @@ with col_right:
                 Q1, ierr1 = pid(st.session_state.Tsp1[i], T1, T1_list[i-1] if i > 0 else T1, ierr1, dt, d2, 1)
                 Q2, ierr2 = pid(st.session_state.Tsp2[i], T2, T2_list[i-1] if i > 0 else T2, ierr2, dt, d1, 2)
 
+            elif model == "MPC":
+                Q1,Q2 = mpc_ctl.step([T1,T2],[ctrl_Tsp1[i],ctrl_Tsp2[i]],dt)
+            
             env.Q1(Q1); env.Q2(Q2)
 
             T1_list.append(T1); T2_list.append(T2)
             Q1_list.append(Q1); Q2_list.append(Q2)
-
-            err1 = st.session_state.Tsp1[i] - T1
-            err2 = st.session_state.Tsp2[i] - T2
+            ref1,ref2 = (ctrl_Tsp1[i], ctrl_Tsp2[i]) if model=="MPC" else (st.session_state.Tsp1[i],st.session_state.Tsp2[i] )
+            err1 = ref1 - T1
+            err2 = ref2 - T2
             raw_r = -np.sqrt(err1**2 + err2**2)
             total_ret += raw_r
             E1 += abs(err1); E2 += abs(err2)
@@ -306,7 +321,9 @@ with col_right:
             Under += max(0, err1) + max(0, err2)
 
             if i % 5 == 0 or i == steps - 1:
-                df_tmp = pd.DataFrame({"T1": T1_list, "T2": T2_list, "TSP1": st.session_state.Tsp1[:i+1], "TSP2": st.session_state.Tsp2[:i+1]})
+                df_tmp = pd.DataFrame({"T1": T1_list, "T2": T2_list, 
+                                       "TSP1": ctrl_Tsp1[:i+1] if model == "MPC" else st.session_state.Tsp1[:i+1], 
+                                       "TSP2": ctrl_Tsp2[:i+1] if model == "MPC" else st.session_state.Tsp2[:i+1]})
                 fig, ax = plt.subplots(figsize=(10, 3))
                 ax.plot(df_tmp["T1"], label="T1"); ax.plot(df_tmp["T2"], label="T2")
                 ax.plot(df_tmp["TSP1"], "--", label="TSP1"); ax.plot(df_tmp["TSP2"], ":", label="TSP2")
@@ -337,6 +354,7 @@ with col_right:
             df_out = pd.DataFrame({
                 "T1": T1_list, "T2": T2_list,
                 "Q1": Q1_list, "Q2": Q2_list,
-                "TSP1": st.session_state.Tsp1[:steps], "TSP2": st.session_state.Tsp2[:steps]
+                "TSP1": (ctrl_Tsp1 if model=="MPC" else st.session_state.Tsp1)[:steps], 
+                "TSP2": (ctrl_Tsp2 if model=="MPC" else st.session_state.Tsp2)[:steps]
             })
             st.download_button("📥 CSV 다운로드", df_out.to_csv(index=False).encode("utf-8"), file_name="rollout.csv")
