@@ -8,7 +8,7 @@ import wandb
 import tclab
 from tqdm import trange
 from src.iql import LSTM_ImplicitQLearning
-from src.lstm_policy import LSTMPolicy
+from src.LSTM_policy import LSTMPolicy
 from src.buffer import LSTMReplayBuffer
 from src.iql import ImplicitQLearning
 from src.value_functions import TwinQ, ValueFunction
@@ -17,7 +17,7 @@ from src.util import (
     normalize,unnormalize,
     normalize_reward,save_csv_png
 )
-from src.lstm_val import lstm_eval_policy
+from src.LSTM_RNN_val import lstm_eval_policy
 
 def get_env(simmul):
     if simmul:

@@ -10,7 +10,7 @@ from tqdm import trange
 
 from src.buffer import ReplayBuffer
 from src.iql import ImplicitQLearning
-from src.policy import GaussianPolicy, DeterministicPolicy
+from src.MLP_policy import GaussianPolicy, DeterministicPolicy
 from src.value_functions import TwinQ, ValueFunction
 from src.util import (
     generate_random_tsp, set_seed, torchify, Log,

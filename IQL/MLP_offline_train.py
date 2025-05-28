@@ -8,7 +8,7 @@ import os
 from datetime import datetime
 import math
 from src.iql import ImplicitQLearning
-from src.policy import GaussianPolicy, DeterministicPolicy
+from src.MLP_policy import GaussianPolicy, DeterministicPolicy
 from src.value_functions import TwinQ, ValueFunction
 from src.util import (
     set_seed, torchify, Log,

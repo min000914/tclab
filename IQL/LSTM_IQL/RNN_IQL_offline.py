@@ -15,7 +15,7 @@ from src.util import (
     sample_batch,
     save_csv_png,print_dataset_statistics,normalize_dataset,normalize_reward
 )
-from src.lstm_val import lstm_eval_policy
+from src.LSTM_RNN_val import lstm_eval_policy
 
 # GPU 디바이스 설정
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

@@ -13,7 +13,7 @@ from pathlib import Path
 # 시스템 설정 및 모듈 불러오기
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from tclab import setup, TCLab
-from IQL.src.policy import GaussianPolicy, MPCBasedGaussianPolicy
+from IQL.src.MLP_policy import GaussianPolicy, MPCBasedGaussianPolicy
 from IQL.src.value_functions import TwinQ, ValueFunction
 from IQL.src.iql import ImplicitQLearning
 from IQL.src.util import torchify

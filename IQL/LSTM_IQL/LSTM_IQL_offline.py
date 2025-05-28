@@ -8,14 +8,14 @@ import os
 from datetime import datetime
 import math
 from src.iql import LSTM_ImplicitQLearning
-from src.lstm_policy import LSTMPolicy
+from src.LSTM_policy import LSTMPolicy
 from src.value_functions import TwinQ, ValueFunction
 from src.util import (
     set_seed, torchify, Log,
     sample_batch,
     save_csv_png,print_dataset_statistics,normalize_dataset,normalize_reward
 )
-from src.lstm_val import lstm_eval_policy
+from src.LSTM_RNN_val import lstm_eval_policy
 
 # GPU 디바이스 설정
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
