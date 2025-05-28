@@ -106,7 +106,7 @@ def real_evalutate_policy(seed, policy, epi_num, max_episode_steps, eval_log_pat
 
 def sim_evalutate_policy(seed, env, policy, epi_num, max_episode_steps, eval_log_path,
                          obs_scale=1.0, act_scale=1.0, sleep_max=1.0, normalization=False
-                         ,action_norm=False,lab_num=5,device="cuda:0"):
+                         ,action_norm=False,obs_dim=6,device="cuda:0"):
     env.close()
     from tclab import setup
     lab = setup(connected=False)
@@ -127,10 +127,10 @@ def sim_evalutate_policy(seed, env, policy, epi_num, max_episode_steps, eval_log
     Q2 = np.zeros(max_episode_steps)
 
     total_reward = 0.0
-    if lab_num == 5 or lab_num == 8:
+    if obs_dim == 6:
         obs_mins = torch.tensor([23.0, 25.0, -1.3, 23.0, 25.0, -1.3], device=device)
         obs_maxs = torch.tensor([67.0, 65.0, 1.3, 67.0, 65.0, 1.3], device=device)
-    else: 
+    elif obs_dim == 4: 
         obs_mins = torch.tensor([24.0, 25.0, 24.0, 25.0], device=device)
         obs_maxs = torch.tensor([66.0, 65.0, 66.0, 65.0], device=device)
     act_mins = torch.tensor([0.0, 0.0], device=device)
@@ -154,10 +154,9 @@ def sim_evalutate_policy(seed, env, policy, epi_num, max_episode_steps, eval_log
             prevQ1 = Q1[i - 1]
             prevQ2 = Q2[i - 1]
         
-        if lab_num==5 or lab_num == 8:
+        if obs_dim == 6:
             obs = np.array([T1[i], Tsp1[i], dT1, T2[i], Tsp2[i], dT2], dtype=np.float32)
-        #obs = np.array([T1[i], T2[i], Tsp1[i], Tsp2[i], prevQ1,prevQ2,dT1,dT2], dtype=np.float32)
-        else:
+        elif obs_dim == 4:
             obs = np.array([T1[i], Tsp1[i], T2[i],Tsp2[i]], dtype=np.float32)
         if normalization:
             obs = normalize(
@@ -168,7 +167,6 @@ def sim_evalutate_policy(seed, env, policy, epi_num, max_episode_steps, eval_log
                 mode='zero_one'    # obs는 0~1 정규화
             )
 
-        
         with torch.no_grad():
             if normalization:
                 action = policy.act(obs, deterministic=True)

@@ -69,7 +69,6 @@ def main(args):
     
 
     obs_dim = dataset['observations'].shape[1]
-    #print(obs_dim,"@@@@@@@@@@@@")
     act_dim = dataset['actions'].shape[1]
     set_seed(args.seed)
 
@@ -98,6 +97,7 @@ def main(args):
                         obs_scale=args.obs_scale,
                         act_scale=args.act_scale,
                         normalization=args.normalization,
+                        obs_dim=obs_dim
                     )
                     all_datas.append(data)
                     tsp_returns.append(data['total_reward']) 

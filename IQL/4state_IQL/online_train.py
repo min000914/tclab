@@ -73,6 +73,7 @@ def main(args):
                         epi_num=tsp_seed,
                         max_episode_steps=args.max_episode_steps,
                         eval_log_path=eval_log_path,
+                        obs_dim=obs_dim
                     )
                     all_datas.append(data)
                     tsp_returns.append(data['total_reward']) 
