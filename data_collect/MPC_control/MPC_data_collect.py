@@ -148,3 +148,5 @@ def mpc_main():
     a.Q2(0)
     a.close()
     print("모든 에피소드 종료됨.")
+
+mpc_main()

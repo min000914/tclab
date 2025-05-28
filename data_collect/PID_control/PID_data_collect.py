@@ -195,3 +195,6 @@ def pid_main():
     a.Q2(0)
     a.close()
     print("All episodes finished.")
+
+
+pid_main()
