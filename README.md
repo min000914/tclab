@@ -1,4 +1,32 @@
-# 🔥 TCLab (Temperature Control Lab)
+
+# PID -> Offline RL(IQL) -> Online RL(IQL)
+
+RL이 실제 제어 환경에서도 잘 동작하는지 확인하고자 합니다.
+
+실제 환경과 상호작용하며 Online RL을 진행하기에는 코스트(시간)소모가 큽니다.​
+
+전통적인 제어 방식(PID)을 폐루프 제어의 제어요소로 사용하여 데이터를 수집합니다. ​
+
+수집한 데이터를 이용하여 Offline pre-train을 진행​합니다.
+
+환경과 상호작용하며 적은 데이터로 Online Tuning을 진행합니다.
+
+실험 환경은 TCLab을 기반으로 실험을 진행합니다.​
+
+PID와 RL 모델의 결과를 비교합니다.
+
+# 개요
+1. 실제 TCLab 키트 상에서 Tsp를 적절히 설정하고, PID 제어를 통해 데이터를 수집​
+
+2. 해당 데이터를 통해 Offline IQL을 진행
+
+3. 시뮬레이터를 활용하여 성능이 향상되는 Online IQL에 대한 다양한 방법론을 실험​
+
+4. 찾은 방법론을 키트에 적용하여 Online IQL을 시행​
+
+5. 키트에서 최종 평가를 진행하여 성능을 측정
+
+# TCLab (Temperature Control Lab)
 
 - 공식 사이트: [APMonitor Arduino Temperature Control](https://apmonitor.com/pdc/index.php/Main/ArduinoTemperatureControl)
 
@@ -7,32 +35,6 @@ TCLab은 **2개의 히터**와 **2개의 온도 센서**로 구성되어, 실제
 
 > ❄️ 냉각 시스템은 내장되어 있지 않으며, **자연 냉각(외부 온도)**에 의존합니다.
 
----
-
-# 실험 Task
-
-## 🔹 SISO (Single Input Single Output)
-- 1개의 히터 + 1개의 온도 센서를 사용
-- 단일 제어 루프 구성
-
-## 🔹 MIMO (Multi Input Multi Output)
-- 2개의 히터 + 2개의 온도 센서를 모두 사용
-- 상호작용이 있는 2개의 제어 루프
-
-> ✅ 본 실험은 **MIMO 제어** 실험을 중심으로 진행됩니다.
-
-
----
-
-# Offline-to-Online Reinforcement Learning
-
-강화학습을 이용한 **TCLab 제어**는 다음과 같은 단계로 진행됩니다:
-
-IQL을 이용한 강화학습을 다루며 다음을 참고하여 제작되었습니다.
-
-1. **PID / MPC 제어로 데이터 수집**  
-2. **Offline RL 학습**  
-3. **TCLab 실기기를 통한 Online Fine-tuning**
 
 ---
 
@@ -57,15 +59,29 @@ IQL을 이용한 강화학습을 다루며 다음을 참고하여 제작되었�
 
 #### 📌 Step 1. 지연 시스템(FOPDT) 모델을 위한 데이터 수집
 
-- **목적**: 시스템의 동적 특성(이득, 시정수, 데드타임) 파악  
-- **방법**: 히터에 다양한 step 입력을 가하여 온도 응답 측정  
+FOPDT 모델은 현실의 많은 동적 시스템을 간단하고 효과적으로 근사하는 데 사용​
+
+PID 계수를 측정하기 위하여 제어 대상의 모델 정보가 필요​
+
+수집된 시계열 데이터를 바탕으로 시스템을 FOPDT모델 근사​하기 위하여 Heater Q1, Q2에 대해 여러 구간의 스텝 입력을 주입하여 데이터 수집​
+
+
 - **결과**: `data.csv` (Q1/Q2 입력, T1/T2 출력)
 
 ---
 
 #### 📌 Step 2. FOPDT 모델 파라미터 추정
+수집된 시계열 데이터를 바탕으로 시스템을 FOPDT모델 근사​
 
-- **모델**: FOPDT (First-Order Plus Dead Time)  
+    𝑦(𝑡): 시스템 출력​
+
+    𝑢(𝑡): 입력 (예: 밸브 개도, 히터 전력 등)​
+
+    Kp​ : 프로세스 이득 (입력의 변화가 출력에 미치는 영향)​
+
+    𝜏𝑝 : 시간 상수 (시스템이 얼마나 빠르게 반응하는지)​
+
+    𝜃𝑝​ : 지연 시간 (입력이 변할 때 출력에 영향까지의 지연 시간)
 - **추정 기법**: `scipy.optimize.minimize` + 수치 적분 (`odeint`)  
 - **결과**: 모델 파라미터 → `fopdt.txt` 저장
 
