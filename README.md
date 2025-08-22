@@ -1,217 +1,167 @@
 
-# PID -> Offline RL(IQL) -> Online RL(IQL)
+# TCLab 온도 제어를 위한 강화학습(IQL) 적용 프로젝트
 
-RL이 실제 제어 환경에서도 잘 동작하는지 확인하고자 합니다.
+PID 제어부터 시작하여 Offline Reinforcement Learning을 거쳐 Online Reinforcement Learning으로 점진적으로 발전시키는 과정을 통해, 실제 제어 환경에서 강화학습(RL)의 효용성을 검증하는 프로젝트입니다.
 
-실제 환경과 상호작용하며 Online RL을 진행하기에는 코스트(시간)소모가 큽니다.​
+## 🚀 프로젝트 목표
 
-전통적인 제어 방식(PID)을 폐루프 제어의 제어요소로 사용하여 데이터를 수집합니다. ​
-
-수집한 데이터를 이용하여 Offline pre-train을 진행​합니다.
-
-환경과 상호작용하며 적은 데이터로 Online Tuning을 진행합니다.
-
-실험 환경은 TCLab을 기반으로 실험을 진행합니다.​
-
-PID와 RL 모델의 결과를 비교합니다.
-
-# 개요
-1. 실제 TCLab 키트 상에서 Tsp를 적절히 설정하고, PID 제어를 통해 데이터를 수집​
-
-2. 해당 데이터를 통해 Offline IQL을 진행
-
-3. 시뮬레이터를 활용하여 성능이 향상되는 Online IQL에 대한 다양한 방법론을 실험​
-
-4. 찾은 방법론을 키트에 적용하여 Online IQL을 시행​
-
-5. 키트에서 최종 평가를 진행하여 성능을 측정
-
-# TCLab (Temperature Control Lab)
-
-- 공식 사이트: [APMonitor Arduino Temperature Control](https://apmonitor.com/pdc/index.php/Main/ArduinoTemperatureControl)
-
-TCLab은 **2개의 히터**와 **2개의 온도 센서**로 구성되어, 실제 **열 제어 시스템을 소형 실험실 환경**에서 모사할 수 있는 장비입니다.  
-목표는 **히터 출력을 조절하여 원하는 온도를 따라가는 것**이며, 히터 출력은 **0~100%의 실수**로 조절 가능합니다.  
-
-> ❄️ 냉각 시스템은 내장되어 있지 않으며, **자연 냉각(외부 온도)**에 의존합니다.
+- 강화학습의 실제 환경 적용성 검증: 시뮬레이션이 아닌 실제 하드웨어(TCLab) 제어 환경에서 강화학습 모델이 효과적으로 동작하는지 확인합니다.
 
 
----
+- 데이터 기반 제어 모델 구축: 전통적인 PID 제어 방식으로 제어 데이터를 수집하고, 이 데이터를 활용하여 Offline RL 모델을 사전 훈련(pre-train)합니다.
 
-#  실험 순서
 
-## 1. Arduino & TCLab 환경 설정
+- 효율적인 Online Fine-tuning: 실제 환경과의 상호작용은 시간 소모가 크므로 , 사전 훈련된 모델을 기반으로 최소한의 상호작용을 통해 Online 환경에서 모델을 미세 조정(fine-tuning)합니다.
+
+
+- 성능 비교 분석: 최종적으로 개발된 강화학습 에이전트와 전통적인 PID 제어기의 성능을 비교 평가합니다.
+
+- UI 개발: 해당 내용들을 바탕으로 streamlit에서 동작할 수 있도록 구현합니다.
+
+## 🔧 실험 환경: TCLab (Temperature Control Lab)
+
+TCLab은 **2개의 히터(Heater)** 와 **2개의 온도 센서(Sensor)** 로 구성되어, 실제 열 제어 시스템을 소형 실험실 환경에서 모사할 수 있는 장비입니다.
+
+
+- 제어 목표: 히터의 출력(Q1, Q2)을 0~100% 사이의 실수 값으로 조절하여, 목표 온도(Tsp1, Tsp2)를 정확히 추종하는 것입니다.
+
+- 주요 특징:
+
+  - 두 히터와 센서는 서로의 온도에 간섭을 일으킵니다.
+
+  - 별도의 냉각 시스템 없이 
+
+  - 자연 냉각에 의존하므로, 온도를 낮추는 것은 외부 환경에 영향을 받습니다.
+
+  - 히터 Q1과 Q2는 출력 효율이 약 2배 차이 납니다.
+
+- 공식 사이트: APMonitor Arduino Temperature Control
+
+- 개발 환경 설정: Getting Started with TCLab
+
+## 📊 전체 워크플로우
+프로젝트는 다음과 같은 5단계의 체계적인 절차로 진행됩니다.
+
+
+1. 데이터 수집 (Data Collection): 실제 TCLab 키트에서 PID 및 MPC 제어 방식을 사용하여 강화학습 모델 훈련에 필요한 시계열 데이터를 수집합니다.
+
+
+2. 오프라인 강화학습 (Offline IQL): 수집된 데이터셋만을 이용하여 IQL(Implicit Q-Learning) 알고리즘으로 정책(Policy)을 사전 훈련합니다.
+
+
+3. 온라인 방법론 탐색 (Online Methodology Search): 시뮬레이터를 활용하여, 오프라인 모델의 성능을 효율적으로 향상시킬 수 있는 다양한 온라인 미세 조정 및 탐험(Exploration) 방법론을 실험합니다.
+
+
+4. 온라인 강화학습 (Online IQL on Kit): 시뮬레이터에서 검증된 최적의 방법론을 실제 TCLab 키트에 적용하여 온라인 미세 조정을 수행합니다.
+
+
+5. 최종 평가 (Final Evaluation): 최종 튜닝된 강화학습 모델과 기존 PID 제어기의 성능을 실제 키트 상에서 정량적으로 비교 평가합니다.
+
+
+##  📝 실험 상세 과정
+
+### 1. Arduino & TCLab 환경 설정
 
 - 아두이노 연결 및 라이브러리 설치는 다음 공식 깃허브를 참고하세요:  
   👉 [Getting Started with TCLab](https://github.com/APMonitor/arduino/blob/master/gettingStarted.md)
 
----
+### 2. 데이터 수집 (Data Collection)
 
-## 2. PID & MPC Control 데이터 수집
+강화학습 모델을 훈련시키기 위해 전문가(Expert) 데이터가 필요합니다. 이를 위해 PID와 MPC라는 두 가지 전통적인 제어 기법을 활용하여 데이터를 수집했습니다.
 
-### 2 - 1 PID
+경로: `data_collect/`
 
-경로: `data_collect/PID_control/PID_data_collect.ipynb`
+#### 2 - 1 PID 제어 데이터 수집
 
-다음 4단계를 통해 데이터를 수집하고 모델을 추정합니다.
+가장 널리 사용되는 폐루프 제어 방식인 PID 컨트롤러를 사용하여 데이터를 수집합니다.
 
----
+- 프로세스:
 
-#### 📌 Step 1. 지연 시스템(FOPDT) 모델을 위한 데이터 수집
+  1. FOPDT 모델 파라미터 추정: 시스템의 동특성을 근사하는 FOPDT 모델을 만들기 위해 스텝 입력(step input)에 대한 온도 반응 데이터를 수집하고, scipy.optimize.minimize를 이용해 모델의 파라미터(Kp, τp, θp)를 추정합니다.
 
-FOPDT 모델은 현실의 많은 동적 시스템을 간단하고 효과적으로 근사하는 데 사용​
+  2. PID 계수 튜닝: 추정된 FOPDT 모델을 기반으로 IMC(Internal Model Control) 튜닝 방식을 사용하여 최적의 PID 계수(Kc, τI, τD)를 계산합니다.
 
-PID 계수를 측정하기 위하여 제어 대상의 모델 정보가 필요​
+  3. 데이터 수집 실행: 튜닝된 PID 제어기를 실제 TCLab에 적용하여 다양한 목표 온도 시나리오에 대한 제어 데이터를 CSV 파일 형식으로 저장합니다. 총 100개의 에피소드(약 120,000 스텝)를 수집했습니다.
 
-수집된 시계열 데이터를 바탕으로 시스템을 FOPDT모델 근사​하기 위하여 Heater Q1, Q2에 대해 여러 구간의 스텝 입력을 주입하여 데이터 수집​
+- 경로: `data_collect/PID_control/PID_data_collect.ipynb`
 
-
-- **결과**: `data.csv` (Q1/Q2 입력, T1/T2 출력)
-
----
-
-#### 📌 Step 2. FOPDT 모델 파라미터 추정
-수집된 시계열 데이터를 바탕으로 시스템을 FOPDT모델 근사​
-
-    𝑦(𝑡): 시스템 출력​
-
-    𝑢(𝑡): 입력 (예: 밸브 개도, 히터 전력 등)​
-
-    Kp​ : 프로세스 이득 (입력의 변화가 출력에 미치는 영향)​
-
-    𝜏𝑝 : 시간 상수 (시스템이 얼마나 빠르게 반응하는지)​
-
-    𝜃𝑝​ : 지연 시간 (입력이 변할 때 출력에 영향까지의 지연 시간)
-- **추정 기법**: `scipy.optimize.minimize` + 수치 적분 (`odeint`)  
-- **결과**: 모델 파라미터 → `fopdt.txt` 저장
-
-    ![alt text](img/image-2.png)
----
-
-#### 📌 Step 3. PID 파라미터 추정
-
-- **튜닝 방식**:  
-  - ITAE 기반 PI 튜닝  
-  - IMC 기반 PID 튜닝  
-- **결과**: `Kc`, `tauI`, `tauD`, `Kff` 도출  
-- **시뮬레이션 확인**:  
-  - 슬라이더 인터페이스(`ipywidgets`)로 실시간 튜닝 실험  
-  - 모델 기반 온도 응답 확인 가능
-
----
-
-#### 📌 Step 4. PID 제어 기반 강화학습 데이터 수집
-
-- **실제 기기 적용**:  
-  - 튜닝된 PID로 히터 제어  
-  - 다양한 목표 온도(TSP1, TSP2) 시나리오 적용
-
-  ---
-
-### 2 - 2. Model Predictive Control (MPC) 방식
+#### 2 - 2. MPC 제어 데이터 수집
 
 **MPC** 방식을 사용하여 온도를 제어합니다.  
 MPC는 **모델 기반의 최적화 제어기**로, 현재 상태에서 **미래를 예측하고, 최적의 제어 입력을 계산**하는 것이 핵심입니다.
 
-경로: `data_collect/MPC_control/MPC_data_collect.py`
+- 프로세스: APMonitor 서버가 시스템 모델(control.apm)을 사용하여 매 주기마다 미래 온도를 예측하고, 목표 온도에 도달하기 위한 최적의 히터 출력(Q1, Q2)을 계산하여 TCLab을 제어합니다.
 
-#### 🔧 작동 방식 요약
+- 경로: `data_collect/MPC_control/MPC_data_collect.py`
 
-1. **현재 온도 측정**
-   - 센서로부터 `T1`, `T2`를 읽어 현재 상태를 파악합니다.
 
-2. **목표 온도 전달**
-   - `TSP1`, `TSP2`를 deadband(±0.1℃)를 포함하여 APMonitor에 전달합니다.
+### 3. 오프라인 강화학습 (Offline IQL)
 
-3. **미래 예측 및 최적화 수행**
-   - 서버에서는 시스템 모델(FOPDT 등)을 사용하여 향후 온도 변화 예측
-   - 미래 일정 시간 동안의 온도가 목표에 근접하도록 최적의 히터 출력(Q1, Q2)을 계산합니다.
+[cite_start]수집된 데이터를 바탕으로 환경과의 상호작용 없이 IQL 모델을 훈련합니다[cite: 232].
 
-4. **히터 제어**
-   - 계산된 Q1, Q2를 실제 히터에 출력하여 온도를 제어합니다.
+- **참조 구현**: [gwthomas/IQL-PyTorch](https://github.com/gwthomas/IQL-PyTorch)
+- **경로**: `make_offline_data.ipynb`
 
-> ✅ 이 최적화는 `APMonitor` 서버에서 매 제어 주기마다 실시간으로 수행됩니다.
+#### 3-1. 시스템 분석 및 상태(State) 재구성
+
+[cite_start]TCLab 시뮬레이터의 내부 코드를 분석한 결과, 히터 출력(Q)이 직접적으로 센서 온도(T)에 영향을 주는 것이 아니라, 접근 불가능한 내부 온도(H)를 통해 간접적으로 영향을 줌을 확인했습니다[cite: 249, 250, 251].
+
+- [cite_start]**가설**: H를 직접 사용할 수 없으므로, **온도 변화량(dT)**을 상태 정보에 추가하면 H의 역할을 대신하여 미래 온도 변화를 예측하는 데 도움이 될 것이다[cite: 321].
+- [cite_start]**검증**: 실제 데이터 분석 결과, 현재 dT와 1스텝 이후의 dT는 상관관계가 거의 없었으나, **5스텝 이전의 dT와 현재 dT는 뚜렷한 양의 상관관계**를 보였습니다[cite: 330, 331].
+- [cite_start]**결론**: `State = [T1, T2, TSP1, TSP2]` 기본 상태에 5스텝 간의 온도 변화량 `dT1(t-5)`, `dT2(t-5)`를 추가했을 때 성능이 가장 크게 향상되었습니다[cite: 473].
+
+
+#### 3-2. 실험 결과 요약
+
+- [cite_start]**상태 표현**: `dT(t-5)`를 상태에 추가한 모델이 가장 우수한 성능을 보였습니다 (`-7382` L2-norm)[cite: 476].
+- [cite_start]**정규화**: State와 Action은 정규화하지 않고, **Reward만 0~1 사이로 정규화**했을 때 가장 좋은 결과를 얻었습니다[cite: 480].
+- [cite_start]**보상 스케일**: 정규화된 Reward에 스케일 팩터 **5**를 곱했을 때 가장 안정적이고 높은 성능을 기록했습니다[cite: 500, 503].
+- [cite_start]**네트워크 구조**: MLP 외에 LSTM, RNN을 정책 네트워크로 사용해봤으나, 데이터 부족 및 불필요한 정보 학습으로 인해 오히려 성능이 큰 폭으로 하락했습니다[cite: 519, 542, 1012, 1013].
+
+### 4. 온라인 강화학습 (Online IQL)
+
+[cite_start]오프라인에서 최적으로 훈련된 모델을 기반으로, 실제 환경(또는 시뮬레이터)과 상호작용하며 추가 학습을 진행합니다[cite: 554, 555].
+
+#### 4-1. 탐험(Exploration) 전략 수립
+
+[cite_start]IQL은 데이터 품질에 매우 민감하여, 단순한 랜덤 탐험은 오히려 데이터의 질을 떨어뜨려 성능을 하락시킬 수 있습니다[cite: 1016, 1018]. 따라서 효과적인 탐험 전략이 중요합니다.
+
+- [cite_start]**문제점**: TCLab 환경은 1 스텝의 액션 변화가 온도에 미치는 영향이 매우 미미하여 단기적인 탐험의 효과를 보기 어렵습니다[cite: 565].
+- [cite_start]**최적 전략 (탐험 변경 4)**: 모델이 출력한 액션(평균)에 **방향성을 가진 노이즈**를 추가하는 방식을 고안했습니다[cite: 657, 658].
+    - `T < Tsp` (온도를 높여야 할 때): 양수(+) 방향의 노이즈를 추가합니다.
+    - `T > Tsp` (온도를 낮춰야 할 때): 음수(-) 방향의 노이즈를 추가합니다.
+    - [cite_start]이 방식은 시뮬레이터와 실제 키트 환경 모두에서 일관된 성능 향상을 보였습니다[cite: 715].
+
+#### 4-2. 온라인 튜닝 결과
+
+- [cite_start]**한계**: 실제 키트에서의 온라인 튜닝은 시간이 매우 오래 걸려(약 이틀간 45,000 스텝) 시뮬레이터만큼 충분한 학습을 진행하지 못했습니다[cite: 980]. [cite_start]또한 외기 온도 변화가 데이터의 일관성을 해치는 문제도 있었습니다[cite: 982].
+- [cite_start]**성능**: 그럼에도 불구하고, `Online-abs noise15` 모델이 Offline 모델 대비 **실제 키트에서 약 5%의 성능 향상**을 달성했습니다[cite: 717].
+
+## 🏆 최종 성능 비교
+
+5개 에피소드에 대한 평균 누적 L2-Norm 오차(-를 곱하여 높을수록 좋음)를 기준으로 성능을 평가했습니다.
+
+| 모델 (테스트 환경) | 점수 (Simulator) | 점수 (Kit) |
+| :--- | :---: | :---: |
+| PID (Baseline) | [cite_start]-7182 [cite: 716] | [cite_start]-7819 [cite: 717] |
+| Offline IQL (Best) | [cite_start]-6742 [cite: 716] | [cite_start]-7196 [cite: 717] |
+| **Online IQL (abs noise 15)** | [cite_start]**-6403** [cite: 716] | [cite_start]**-6841** [cite: 717] |
+
+**강화학습 모델(Online IQL)이 PID 제어기 대비 실제 키트 환경에서 약 12.5% 더 나은 성능을 보였습니다.**
+
+
+## 💡 결론 및 고찰
+
+- [cite_start]**강화학습의 우수성**: RL 방법론이 전통적인 PID 제어 방식보다 더 나은 제어 성능을 보여주었습니다[cite: 1008].
+- [cite_start]**데이터 품질의 중요성**: IQL은 데이터셋의 행동 중 좋은 행동을 모방하여 학습하므로, 잘 정제된 고품질의 데이터가 성능에 결정적인 영향을 미칩니다[cite: 1016].
+- [cite_start]**지능적인 탐험의 필요성**: 단순한 랜덤 탐험은 오히려 학습을 방해하며, 도메인 지식을 활용한 체계적인 탐험 전략이 성능 향상의 핵심입니다[cite: 1018].
+- [cite_start]**평가 지표의 한계**: 목표 온도가 급격히 변하는 시점에서는 제어를 잘하더라도 오차 값이 크게 측정될 수밖에 없습니다[cite: 1020]. [cite_start]향후에는 목표 온도 변경을 고려한 새로운 평가 기준을 정립할 필요가 있습니다[cite: 1021].
+
+## 💻 실행 방법
+
+1.  **환경 설정**: `README.md`의 안내에 따라 Arduino 및 TCLab 라이브러리를 설치합니다.
+2.  **PID 데이터 수집**: `data_collect/PID_control/PID_data_collect.ipynb`를 실행하여 PID 제어 데이터를 수집합니다.
+3.  **오프라인 데이터셋 생성**: `make_offline_data.ipynb`를 실행하여 수집된 데이터를 IQL 훈련에 적합한 형태로 가공합니다.
+4.  **모델 훈련 및 평가**: `IQL-PyTorch` 구현 코드를 사용하여 오프라인 및 온라인 훈련과 평가를 진행합니다.
 
 ---
-
-#### 제어 원리 (MPC의 핵심)
-
-MPC는 다음 최적화 문제를 반복적으로 풉니다:
-
-minimize over Q1, Q2:
-    sum_{k=0}^{N} [ (T1_k - TSP1_k)^2 + (T2_k - TSP2_k)^2 + penalty terms ]
-
----
-
-#### 구성 파일 및 설정 정보
-
-- **모델 파일**: `MPC_control/control.apm`  
-- **데이터 파일**: `MPC_control/control.csv`
-
-
----
-
-
-
-### 2 - 3. Model Predictive Control (MPC) 방식
-
-경로: `data_collect/pid_mpc_data_collect.py`
-
-PID와 MPC 데이터를 동시에 수집합니다.
-
-**단, PID 데이터 수집을 위해서 앞선 2-1 단계를 거쳐 PID파라미터를 구해놓아햐 합니다.**
-
-- **수집 데이터**:  
-  - 상태: 온도(T1, T2)  
-  - 행동: 히터 출력(Q1, Q2)  
-  - 목표: TSP1, TSP2  
-  - 보상 지표: IAE 등  
-  - 저장 형식: CSV (`PID_episode_*.csv`)
-
-- 각 에피소드 결과는 다음 형식으로 저장됩니다:
-  - **CSV**: 
-  
-        /data/PID_MPC/PID/csv/PID_episode_*.csv
-        /data/PID_MPC/MPC/csv/MPC_episode_*.csv
-
-  - **그래프(PNG)**:
-
-        /data/PID_MPC/PID/csv/PID_episode_*.png
-        /data/PID_MPC/MPC/csv/MPC_episode_*.png
-
-
-## 3. Offline Reinforcement(IQL)
-
-다음의 깃허브를 참조하여 구현되었습니다. https://github.com/gwthomas/IQL-PyTorch
-
-PID, MPC로 수집된 데이터를 통해 IQL을 Offline 훈련시킵니다.
-
-경로: `/make_offline_data.ipynb`
-
-다음 노트북을 실행시켜 offline 훈련에 사용될 데이터를 생성합니다.
-자세한 실험 정리와 코드를 확인할 수 있습니다.
-
-### 실험 1
-- 상태: T1, T2, TSP1, TSP2 
-- 액션: Q1, Q2
-- 보상: 목표온도 - 측정온도
-
-### 실험 2
-- 상태: T1, T2, TSP1, TSP2 
-- 액션: Q1, Q2
-- 보상: 목표온도(t+1) - 측정온도(t+1)
-
-
-
-### 실험 3
-
-- 상태: T1, T2, TSP1, TSP2 
-- 액션: Q1, Q2
-
-- 보상:  PBRS(Potential-Based Reward Shaping) 적용 
-
-  -> Φ(t) = -‖T_t - TSP_t‖
-
-  -> rt=0 //개선정도만이 보상의 척도가 됨.
-
-  -> reward_t = rt + γ * Φ(t+1) - Φ(t) 
